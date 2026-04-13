@@ -1,0 +1,1114 @@
+﻿ActaFlow
+AI Meeting Action Item Extractor SaaS
+Complete Product Spec  ·  DB Schema  ·  Gemini Prompt  ·  API Design
+
+Next.js 15
+Gemini Flash
+Inngest
+Resend
+Neon + Drizzle
+
+1. Product Overview
+ActaFlow is an AI-powered SaaS that turns meeting recordings and transcripts into structured action items, owner assignments, and deadlines - then automatically emails every attendee a personalised summary within minutes of the meeting ending.
+
+The problem it solves:
+• After every meeting, someone has to manually write up what was decided and who owns what
+• Action items get lost in Slack threads, long email chains, or nobody's notes
+• Follow-up tasks are forgotten because there is no accountability system
+• Remote teams across time zones never get a consistent record of decisions
+
+
+Core promise:  Drop in a recording or paste a transcript → every attendee gets a personalised email listing only their action items, with deadlines, within 2 minutes.
+
+2. Target Users
+User
+Pain Today
+What MeetingMemo Delivers
+Remote startup teams
+Decisions lost in async Slack chaos
+Structured action items emailed to everyone instantly
+Product managers
+Sprint planning actions scattered across Notion and Jira
+Gemini extracts and assigns every task from the standup
+Freelancers & agencies
+Client call notes written manually, often forgotten
+Drop recording → client receives itemised action email
+Sales teams
+Post-demo follow-ups typed out manually
+Next steps auto-extracted and emailed to rep + prospect
+Consultants
+Workshop outputs take hours to document
+Paste transcript → structured report in 60 seconds
+
+3. Full Feature Specification
+3.1  Meeting Upload
+Users submit meetings in three ways:
+• Audio/video file upload (.mp3, .mp4, .m4a, .wav, .webm - max 500 MB on Pro)
+• Raw transcript paste - plain text or formatted (supports Zoom, Meet, Teams export formats)
+• Recall.ai bot integration (Plus/Pro) - bot auto-joins scheduled meetings and delivers transcript
+
+• Files are uploaded to Cloudinary CDN and a signed URL is passed to Gemini
+• Supported languages: English, Hindi, Spanish, French, German, Portuguese
+• Audio is processed via Gemini Flash multimodal - no separate transcription step needed
+• Transcript is stored in Neon DB for future re-processing or export
+3.2  AI Extraction Pipeline (Gemini Flash)
+The core AI step. Gemini processes the transcript and extracts a structured JSON object containing:
+• Meeting title - inferred from content if not provided
+• Date & duration - extracted from metadata or transcript context
+• Attendees - names detected from the transcript (speaker labels, mentions, sign-offs)
+• Key decisions - major outcomes agreed in the meeting
+• Action items - each with: description, owner name, due date, priority (high/medium/low)
+• Blockers - items flagged as blocked or waiting on external input
+• Summary paragraph - 3-5 sentence plain-English recap of the whole meeting
+
+
+Gemini advantage:  Flash processes audio natively (multimodal) - no Whisper transcription step, no extra API call, no extra cost.
+3.3  Attendee Email Delivery (Resend)
+After extraction, Inngest triggers personalised email delivery to every attendee:
+• Each person receives only their assigned action items + the full meeting summary
+• Email template: React Email - dark-themed, clean, mobile-responsive
+• Subject line: "Your action items from [Meeting Title] - [Date]"
+• Each action item card shows: task description, due date badge, priority label
+• One-click "Mark Done" link per action item (updates DB without logging in)
+• CC option: user can add extra recipients (e.g. a manager or client)
+• Delivery status tracked in email_logs table via Resend webhook
+
+
+Key UX decision:  Attendees do NOT need a MeetingMemo account to receive or act on their emails. Zero friction for the recipient.
+3.4  Meeting Dashboard
+• List of all past meetings with title, date, attendee count, action item count
+• Click into any meeting to see full extraction: decisions, action items, blockers, summary
+• Filter by date range, attendee, status (open / all done / overdue)
+• Re-send emails for any meeting (useful if an attendee changes email)
+• Download meeting report as PDF or markdown
+• Edit extracted action items manually if Gemini missed something
+3.5  Action Item Tracker
+• Global view across all meetings: every open action item in one list
+• Filter by owner, meeting, due date, priority
+• Status updates: open → in progress → done → cancelled
+• Overdue alerts: Inngest cron sends a daily reminder email to owners of overdue items
+• One-click "Mark Done" from email or dashboard - no login required for email link
+3.6  Integrations (Plus / Pro)
+• Notion: auto-create a page with action items in a chosen database
+• Linear: create issues from action items with assignee and due date
+• Slack: post meeting summary to a chosen channel after processing
+• Google Calendar: link meeting to a calendar event for context
+• Zapier webhook: send extracted JSON to any downstream tool
+3.7  Team Workspace (Pro)
+• Invite team members - shared meeting library
+• Role-based access: Owner / Editor / Viewer
+• Shared action item tracker across the whole team
+• Usage analytics: meetings processed per month, avg action items per meeting
+
+4. Technology Stack
+Layer
+Tool
+Role
+Frontend
+Next.js 15
+App Router, server components, dashboard UI
+Styling
+Tailwind CSS + shadcn/ui
+Utility styling, pre-built components
+Auth + Billing
+Clerk
+Sign-up, sign-in, plan gating, webhooks
+Database
+Neon PostgreSQL
+Serverless Postgres - scales to zero
+ORM
+Drizzle ORM
+Type-safe schema, migrations, query builder
+AI Extraction
+gemini-3-flash-preview 
+Multimodal - processes audio + transcript directly
+Background Jobs
+Inngest
+Upload processing, email pipeline, reminder crons
+Email Delivery
+Resend + React Email
+Transactional email, delivery tracking, webhooks
+File Storage
+Cloudinary
+Audio/video uploads, signed URL access for Gemini
+PDF Export
+Puppeteer
+Meeting report PDF generation on Vercel
+Deployment
+Vercel
+Edge deployment, CI/CD on every git push
+
+5. System Architecture - Upload to Email Flow
+Every meeting upload goes through this exact pipeline:
+
+1. User uploads file or pastes transcript via /dashboard/new
+2. Next.js API route /api/meetings/create stores metadata in Neon, uploads file to Cloudinary, fires Inngest event meetingmemo/meeting.uploaded
+3. Inngest picks up the event → calls /api/inngest → runs processMeeting function
+4. processMeeting sends audio URL (or transcript text) to Gemini Flash with the extraction prompt
+5. Gemini returns structured JSON: { title, attendees[], decisions[], action_items[], summary }
+6. Inngest writes all extracted data to Neon across meetings, action_items, attendees tables
+7. Inngest fires meetingmemo/emails.send for each unique attendee with their items
+8. Resend delivers personalised email to each attendee; delivery status logged via webhook
+9. Dashboard updates in real-time via Next.js server component revalidation
+
+
+Total time:  From upload click to all emails delivered - typically under 90 seconds for a 1-hour meeting transcript.
+
+6. Database Schema
+Six tables. All PKs are UUIDs. Timestamps stored as UTC timestamptz.
+
+6.1  users
+users
+Column
+Type
+Null
+Notes
+id
+uuid
+NO
+PK - mirrors Clerk user_id
+email
+varchar(255)
+NO
+Primary email from Clerk
+full_name
+varchar(200)
+YES
+Display name
+plan
+varchar(20)
+NO
+'free' | 'plus' | 'pro'
+meetings_used
+integer
+NO
+DEFAULT 0 - monthly counter
+timezone
+varchar(60)
+NO
+DEFAULT 'Asia/Kolkata'
+created_at
+timestamptz
+NO
+DEFAULT now()
+
+6.2  meetings
+meetings
+Column
+Type
+Null
+Notes
+id
+uuid
+NO
+PK
+user_id
+uuid
+NO
+FK → users.id
+title
+varchar(300)
+YES
+Auto-filled by Gemini if blank
+meeting_date
+date
+YES
+Extracted or user-provided
+duration_mins
+integer
+YES
+Extracted from transcript
+source
+varchar(20)
+NO
+'upload' | 'paste' | 'recall_bot'
+raw_transcript
+text
+YES
+Full transcript text
+audio_url
+varchar(500)
+YES
+Cloudinary signed URL
+summary
+text
+YES
+Gemini-generated 3-5 sentence recap
+decisions
+jsonb
+YES
+Array of decision strings
+blockers
+jsonb
+YES
+Array of blocker strings
+status
+varchar(20)
+NO
+'processing' | 'done' | 'failed'
+language
+varchar(10)
+NO
+DEFAULT 'en'
+created_at
+timestamptz
+NO
+DEFAULT now()
+
+6.3  attendees
+attendees
+Column
+Type
+Null
+Notes
+id
+uuid
+NO
+PK
+meeting_id
+uuid
+NO
+FK → meetings.id
+name
+varchar(200)
+NO
+Extracted from transcript
+email
+varchar(255)
+YES
+User-provided or matched from contacts
+email_sent
+boolean
+NO
+DEFAULT false
+email_sent_at
+timestamptz
+YES
+Timestamp of successful send
+
+6.4  action_items
+action_items
+Column
+Type
+Null
+Notes
+id
+uuid
+NO
+PK
+meeting_id
+uuid
+NO
+FK → meetings.id
+user_id
+uuid
+NO
+FK → users.id (owner of the meeting)
+owner_name
+varchar(200)
+NO
+Name as extracted from transcript
+owner_email
+varchar(255)
+YES
+Matched from attendees.email
+description
+text
+NO
+What needs to be done
+due_date
+date
+YES
+Extracted or inferred by Gemini
+priority
+varchar(10)
+NO
+'high' | 'medium' | 'low'
+status
+varchar(20)
+NO
+'open' | 'in_progress' | 'done' | 'cancelled'
+done_token
+varchar(100)
+NO
+UNIQUE - used in one-click done email links
+done_at
+timestamptz
+YES
+When status changed to done
+created_at
+timestamptz
+NO
+DEFAULT now()
+
+6.5  email_logs
+email_logs
+Column
+Type
+Null
+Notes
+id
+uuid
+NO
+PK
+meeting_id
+uuid
+NO
+FK → meetings.id
+attendee_id
+uuid
+NO
+FK → attendees.id
+resend_email_id
+varchar(100)
+YES
+Resend message ID for tracking
+status
+varchar(20)
+NO
+'sent' | 'delivered' | 'opened' | 'failed'
+opened_at
+timestamptz
+YES
+From Resend webhook
+retry_count
+integer
+NO
+DEFAULT 0
+created_at
+timestamptz
+NO
+DEFAULT now()
+
+6.6  contacts
+contacts
+Column
+Type
+Null
+Notes
+id
+uuid
+NO
+PK
+user_id
+uuid
+NO
+FK → users.id
+name
+varchar(200)
+NO
+Contact full name
+email
+varchar(255)
+NO
+Used for auto-matching attendees
+created_at
+timestamptz
+NO
+DEFAULT now()
+
+7. Gemini Extraction Prompt
+This is the exact prompt passed to Gemini Flash. It is a system + user message pair. The transcript or audio URL is passed as the user content.
+
+7.1  System Prompt
+SYSTEM PROMPT - paste into Gemini API call system field
+
+You are MeetingMemo, an expert meeting analyst. Your job is to extract structured information from meeting transcripts or recordings with precision and consistency.
+
+OUTPUT RULES:
+- Always respond with ONLY valid JSON. No markdown, no preamble, no explanation.
+- Never add fields not in the schema below.
+- If information is not present in the transcript, use null - never guess or fabricate.
+
+JSON SCHEMA TO FOLLOW EXACTLY:
+{
+  "title": "string - meeting topic inferred from content",
+  "meeting_date": "YYYY-MM-DD or null",
+  "duration_mins": number_or_null,
+  "language": "en | hi | es | fr | de | pt",
+  "summary": "3-5 sentence plain-English recap of the meeting",
+  "attendees": ["name1", "name2"],
+  "decisions": ["decision1", "decision2"],
+  "blockers": ["blocker1"],
+  "action_items": [
+    {
+      "owner": "exact name as spoken in the transcript",
+      "description": "clear, complete task description",
+      "due_date": "YYYY-MM-DD or null if not mentioned",
+      "priority": "high | medium | low",
+      "context": "1 sentence explaining why this task was assigned"
+    }
+  ]
+}
+
+PRIORITY RULES:
+- high: explicit deadline within 48 hours, or marked as urgent/critical/blocker
+- medium: deadline within 1-2 weeks, or important to project progress
+- low: no deadline mentioned, or nice-to-have / exploratory task
+
+EXTRACTION RULES:
+- Extract ALL action items - do not summarise or combine separate tasks into one.
+- If ownership is unclear, use "Team" as the owner name.
+- Relative dates (e.g. "by Friday") should be resolved relative to meeting_date if known.
+- Include context for each action item - it helps the recipient understand why.
+- Decisions are outcomes agreed upon, not tasks. Keep them separate from action items.
+
+7.2  User Message Template
+The user message is constructed in your Next.js API route before calling Gemini:
+
+const userMessage = transcript
+  ? `Transcript:\n\n${transcript}`
+  : `Audio file URL: ${audioUrl}\n\nAnalyse this meeting recording.`;
+
+const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+
+const fullUserMessage = `Today's date is ${today}. ${userMessage}`;
+
+
+Why include today's date?  Gemini needs it to resolve relative dates like "by Friday" or "next week" into real YYYY-MM-DD values.
+
+8. Inngest Background Jobs
+8.1  meetingmemo/meeting.uploaded
+Trigger: fired immediately when a new meeting is created.
+• Step 1 - updateStatus: set meetings.status = processing
+• Step 2 - callGemini: send transcript/audio to Gemini Flash, receive JSON
+• Step 3 - saveExtraction: write all data to meetings, action_items, attendees tables
+• Step 4 - triggerEmails: fire meetingmemo/emails.send for every attendee
+• Step 5 - updateStatus: set meetings.status = done (or failed on error)
+• Retry: Inngest auto-retries on failure up to 3x with exponential backoff
+• Timeout: 5 minutes max - enough for a 2-hour meeting audio
+8.2  meetingmemo/emails.send
+Trigger: fired per attendee after extraction completes.
+• Step 1 - buildEmail: query all action items where owner_name matches attendee
+• Step 2 - sendResend: call Resend API with React Email template, log email_id
+• Step 3 - markSent: update attendees.email_sent = true, email_sent_at = now()
+• Retry: on Resend failure, retry up to 3x - log retry_count in email_logs
+8.3  meetingmemo/reminders.daily
+Trigger: Cron schedule - 0 30 2 * * * (8 AM IST daily).
+• Queries all action_items where status = open AND due_date < today
+• Groups overdue items by owner_email
+• Sends a single digest email per owner listing all their overdue items
+• Respects plan limits: Free users get 1 reminder email per item total
+• Pro users get daily reminders until item is marked done
+8.4  meetingmemo/meeting.reprocess
+Trigger: manual - fired when user clicks Re-extract on dashboard.
+• Deletes existing action_items and attendees rows for the meeting
+• Re-runs Gemini extraction with latest prompt version
+• Re-sends emails to all attendees with updated action items
+
+9. Next.js API Routes
+Route
+Method
+Purpose
+/api/meetings/create
+POST
+Upload file or paste transcript - creates meeting record, fires Inngest
+/api/meetings
+GET
+List all meetings for current user (paginated)
+/api/meetings/[id]
+GET
+Full meeting detail: summary, decisions, action items
+/api/meetings/[id]/reprocess
+POST
+Re-run Gemini extraction on existing meeting
+/api/meetings/[id]/resend-emails
+POST
+Re-send emails to all attendees
+/api/action-items
+GET
+All open items across all meetings (tracker view)
+/api/action-items/[id]/done
+GET
+One-click done link from email (token auth)
+/api/action-items/[id]
+PATCH
+Update status, due date, priority from dashboard
+/api/contacts
+GET / POST
+Contact directory for attendee email matching
+/api/inngest
+POST
+Inngest webhook - all background job functions registered here
+/api/webhooks/resend
+POST
+Resend delivery status callbacks → update email_logs
+/api/webhooks/clerk
+POST
+Clerk user lifecycle → sync to users table
+
+10. Resend Email Template Design
+Built with React Email. One template handles all attendees - action items are filtered per recipient at render time.
+
+Email structure (top to bottom):
+10. Header bar - MeetingMemo logo + meeting title
+11. Greeting - "Hi [Name], here are your action items from [Meeting Title]"
+12. Summary box - the 3-5 sentence meeting recap (light gray background)
+13. Action items section - one card per item:
+- "[Description]" in bold
+- Due date badge (red if overdue, amber if due soon, gray if no date)
+- Priority pill - High / Medium / Low with color coding
+- Context line in muted text
+- [Mark as Done] button → /api/action-items/[id]/done?token=[done_token]
+14. Decisions section - bulleted list of meeting decisions
+15. Footer - "Sent by MeetingMemo · Unsubscribe"
+
+
+No login required:  The Mark as Done button uses a unique token in the URL. Recipients click it → item marked done immediately. Zero friction, zero account needed.
+
+11. Business Model & Pricing
+Feature
+Free
+Plus ($10/mo)
+Pro ($29/mo)
+Meetings per month
+5
+20
+Unlimited
+Attendee emails per meeting
+3
+Unlimited
+Unlimited
+Audio upload (max size)
+-
+100 MB
+500 MB
+Transcript paste
+Yes
+Yes
+Yes
+AI re-extraction
+-
+3/mo
+Unlimited
+Action item tracker
+Basic
+Full
+Full
+Overdue reminders
+1 per item
+Daily
+Daily + SMS
+Integrations (Notion, Linear)
+-
+2 integrations
+All integrations
+Recall.ai bot auto-join
+-
+-
+Included
+PDF / Markdown export
+-
+PDF
+PDF + Markdown
+Team workspace
+-
+-
+5 seats
+Data retention
+30 days
+1 year
+Unlimited
+
+
+Monetisation insight:  The free plan is deliberately limited to 5 meetings - enough to prove value, not enough to run a team on. The jump to Plus is clear the moment a team has more than one weekly standup.
+
+12. Environment Variables
+# AI
+GEMINI_API_KEY=
+
+# Database
+DATABASE_URL=           # Neon connection string
+
+# Auth
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+CLERK_WEBHOOK_SECRET=
+
+# Email
+RESEND_API_KEY=
+RESEND_WEBHOOK_SECRET=
+EMAIL_FROM=meetings@yourdomain.com
+
+# Background Jobs
+INNGEST_EVENT_KEY=
+INNGEST_SIGNING_KEY=
+
+# File Storage
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+# App
+NEXT_PUBLIC_APP_URL=https://yourdomain.com
+
+13. Drizzle Schema Snippet
+Key table definitions for reference. Full schema follows these patterns:
+
+import { pgTable, uuid, text, varchar, integer,
+         boolean, date, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { createId } from '@paralleldrive/cuid2';
+
+export const meetings = pgTable('meetings', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  userId:        uuid('user_id').notNull().references(() => users.id),
+  title:         varchar('title', { length:300 }),
+  source:        varchar('source', { length:20 }).notNull(),
+  rawTranscript: text('raw_transcript'),
+  audioUrl:      varchar('audio_url', { length:500 }),
+  summary:       text('summary'),
+  decisions:     jsonb('decisions'),
+  blockers:      jsonb('blockers'),
+  status:        varchar('status', { length:20 }).notNull().default('processing'),
+  createdAt:     timestamp('created_at').notNull().defaultNow(),
+});
+
+export const actionItems = pgTable('action_items', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  meetingId:   uuid('meeting_id').notNull().references(() => meetings.id),
+  userId:      uuid('user_id').notNull().references(() => users.id),
+  ownerName:   varchar('owner_name', { length:200 }).notNull(),
+  ownerEmail:  varchar('owner_email', { length:255 }),
+  description: text('description').notNull(),
+  dueDate:     date('due_date'),
+  priority:    varchar('priority', { length:10 }).notNull().default('medium'),
+  status:      varchar('status', { length:20 }).notNull().default('open'),
+  doneToken:   varchar('done_token', { length:100 }).notNull().unique()
+               .$defaultFn(() => createId()),
+  doneAt:      timestamp('done_at'),
+  createdAt:   timestamp('created_at').notNull().defaultNow(),
+});
+
+14. MeetingMemo as an Execution Engine
+Most meeting tools stop at summaries. MeetingMemo goes further - it turns every meeting into a trackable execution workflow. This section defines the seven execution engine features, each with a clear before/after showing the problem it solves and the capability it delivers.
+
+
+Vision shift:  MeetingMemo is not a note-taking tool. It is the system that ensures what was decided in a meeting actually gets done - with ownership, deadlines, and accountability baked in automatically.
+
+14.1  Feature Overview - Before vs After
+#
+Execution Feature
+Before MeetingMemo (Problem)
+After MeetingMemo (Execution Engine)
+01
+Action Item Extraction
+Someone manually writes down tasks after the meeting. Often incomplete, missed, or never shared.
+Gemini extracts every single action item from the transcript - owner, description, due date, priority - automatically.
+02
+Priority Detection
+All tasks look the same. Nobody knows what to do first. Urgency is lost in the noise.
+Every action item is auto-labelled High / Medium / Low based on language signals, deadlines, and urgency keywords.
+03
+Decision Extraction
+Decisions dissolve into chat history. Two weeks later nobody remembers what was agreed.
+Every decision made in the meeting is extracted, stored separately, and included in every attendee's email.
+04
+Owner Assignment
+Tasks float in a shared doc. No clear owner = no accountability. Things fall through the cracks.
+Each action item is linked to a named owner. Their personalised email shows only their tasks. One person, one list.
+05
+Deadline Tracking
+Due dates are buried in meeting notes or never set. Overdue work is invisible until it becomes a crisis.
+Inngest cron checks overdue items daily and sends reminder emails to owners automatically. Nothing slips.
+06
+Execution Status Tracking
+No way to know if action items were completed. Follow-up requires another meeting or manual chase.
+Every action item has Open / In Progress / Done / Cancelled status. One-click done from email. Dashboard shows live progress.
+07
+Workflow Continuity
+Each meeting starts from scratch. No link between last week's decisions and this week's agenda.
+Unresolved items from past meetings auto-surface in the next meeting brief. Decisions chain across time.
+
+14.2  Execution Features - Deep Dive
+
+01  Intelligent Action Item Extraction
+Every task, every owner, every deadline - captured without anyone lifting a pen.
+→  Gemini reads the full transcript and identifies every commitment made, not just explicit "action item" phrases
+→  Implicit tasks are caught too - "I'll look into that" is extracted as an action item assigned to the speaker
+→  Multi-item statements are split: "Priya will handle design and Rahul will do backend" → two separate items
+→  Items with no clear owner are flagged as "Team" and appear in all attendee emails
+→  Every item includes a context field - one sentence explaining why the task was assigned
+
+02  Automatic Priority Detection
+Urgency signals in language are converted to actionable priority labels.
+→  High - explicit deadline within 48 hours, words like urgent/critical/blocker/ASAP/today
+→  Medium - deadline within 1-2 weeks, phrases like "this sprint", "before the release", "soon"
+→  Low - no deadline mentioned, exploratory language like "when you get a chance", "would be nice"
+→  Priority is visible as a colour-coded pill in every email and on the dashboard tracker
+→  Users can override AI priority from the dashboard - override is preserved on re-extraction
+
+03  Decision Extraction & Audit Trail
+What was agreed is as important as what needs to be done.
+→  Gemini separates decisions from action items - decisions are outcomes, not tasks
+→  Example decision: "We agreed to launch on the 15th with a soft rollout to 10% of users"
+→  All decisions are stored in meetings.decisions (JSONB array) and included in every attendee email
+→  Decision history is searchable across all past meetings - find when something was agreed and by whom
+→  Future feature: Decision conflicts - flag if a new meeting decision contradicts a past one
+
+04  Smart Owner Assignment & Personalised Delivery
+The right tasks reach the right person - automatically.
+→  Owner name is extracted verbatim from the transcript ("Kiran will...", "assigned to Priya")
+→  Name is matched against the contacts table for email resolution - fuzzy match handles nicknames
+→  Each attendee gets a personalised email showing only their tasks - no noisy full list
+→  Unmatched owners receive a "Team" task visible to all attendees
+→  Contact directory builds automatically - save once, match forever across all future meetings
+
+05  Deadline Tracking & Automated Reminders
+Overdue work surfaces automatically - no manual chasing needed.
+→  Inngest cron runs daily at 8 AM IST - checks all action_items where status=open AND due_date < today
+→  Each overdue owner receives a digest email: all their overdue items grouped in a single message
+→  Free plan: 1 reminder per item total. Plus: daily until done. Pro: daily + escalation to meeting host
+→  Relative dates in transcripts ("by Friday", "next week") are resolved to real dates using meeting date context
+→  Items with no due date are not counted as overdue - they appear in the open tracker with no deadline badge
+
+06  Live Execution Status Tracking
+Every action item has a real-time status. The dashboard shows exactly where execution stands.
+→  Four statuses: Open → In Progress → Done → Cancelled
+→  One-click done from email using a secure token URL - no login, no friction for recipients
+→  Status changes from dashboard update in real time via Next.js server component revalidation
+→  Meeting completion score: percentage of action items marked done - visible on meeting card
+→  Weekly digest email to meeting host: X of Y items done, Z overdue - sent every Monday
+
+07  Workflow Continuity Across Meetings
+Unresolved items carry forward. Decisions chain across time. Nothing gets forgotten between sprints.
+→  Pre-meeting brief (Pro): before a recurring meeting, Inngest emails attendees their still-open items from last time
+→  Carry-forward: any action item not marked done by the next meeting is flagged as "carried over" on the new meeting
+→  Decision search: full-text search across all past meeting decisions - find when something was agreed
+→  Meeting series: group related meetings (e.g. weekly standup) - see execution trend over time
+→  Velocity metric: average days from action item created to done - visible per person and per team
+
+14.3  MeetingMemo vs Ordinary Meeting Summary Tools
+Capability
+Ordinary Summary Tool
+MeetingMemo Execution Engine
+Produces output
+Yes - a text summary
+Yes - structured execution workflow
+Action items
+Listed in summary text
+Extracted, assigned, tracked with status
+Priority levels
+Not assigned
+Auto-detected: High / Medium / Low
+Decisions
+Buried in summary
+Separated, stored, searchable across all meetings
+Owner assignment
+Named in text only
+Linked to contacts, personalised email per owner
+Email delivery
+One summary to organiser
+Personalised email to every attendee
+Deadline tracking
+No
+Inngest cron - daily reminders until done
+Completion tracking
+No
+Live status per item - one-click done from email
+Cross-meeting continuity
+No
+Carry-forward, pre-meeting brief, velocity metrics
+Accountability
+Passive - read and forget
+Active - owner is notified, reminded, tracked
+
+14.4  The Execution Workflow - End to End
+How a single meeting becomes a living, tracked execution workflow:
+
+01
+Meeting ends → host uploads recording or pastes transcript into MeetingMemo
+02
+Gemini Flash processes in ~60s → extracts actions, decisions, owners, priorities, blockers
+03
+Each action item gets a unique done_token, owner name, due date, priority label, and context
+04
+Inngest fires one personalised email per attendee via Resend - only their tasks, full meeting summary
+05
+Attendees receive email → read their action items → one click to mark done → status updates live
+06
+Dashboard shows meeting completion score - X of Y items done, Z overdue
+07
+Inngest cron fires daily - overdue owners get reminder email automatically, no manual chase
+08
+Before next meeting - Inngest sends pre-meeting brief: open items from last time + decisions made
+09
+New meeting is processed → carries forward unresolved items → execution chain continues
+
+
+The result:  A meeting is no longer an event that produces a document. It is the starting point of an execution workflow that runs automatically until every commitment is fulfilled.
+
+15. Installation - All Packages & MCP Servers
+Complete installation reference for MeetingMemo. Run commands in order. All packages are organised by purpose so you know exactly why each one is installed.
+
+
+Note:  Run all npm commands from your project root. MCP server commands are for Claude Code global config (user scope) on Windows PowerShell.
+
+15.1  Create the Next.js Project
+# Scaffold - Next.js 15 with App Router, TypeScript, Tailwind
+npx create-next-app@latest meetingmemo \
+  --typescript \
+  --tailwind \
+  --eslint \
+  --app \
+  --src-dir \
+  --import-alias "@/*"
+
+cd meetingmemo
+
+15.2  UI Components - shadcn/ui
+# Initialise shadcn/ui
+npx shadcn@latest init
+
+# Install shadcn components used in MeetingMemo
+npx shadcn@latest add button
+npx shadcn@latest add card
+npx shadcn@latest add badge
+npx shadcn@latest add dialog
+npx shadcn@latest add dropdown-menu
+npx shadcn@latest add input
+npx shadcn@latest add label
+npx shadcn@latest add select
+npx shadcn@latest add separator
+npx shadcn@latest add sheet
+npx shadcn@latest add skeleton
+npx shadcn@latest add table
+npx shadcn@latest add tabs
+npx shadcn@latest add textarea
+npx shadcn@latest add toast
+npx shadcn@latest add tooltip
+npx shadcn@latest add progress
+npx shadcn@latest add avatar
+
+15.3  Authentication - Clerk
+# Clerk Next.js SDK
+npm install @clerk/nextjs
+
+15.4  Database - Neon + Drizzle ORM
+# Neon serverless driver + Drizzle ORM + Drizzle Kit (migrations)
+npm install drizzle-orm @neondatabase/serverless
+npm install --save-dev drizzle-kit
+
+# CUID2 for generating unique done_token values
+npm install @paralleldrive/cuid2
+
+# dotenv for drizzle.config.ts to read DATABASE_URL
+npm install --save-dev dotenv
+
+15.5  AI - Google Gemini Flash
+# Google Generative AI SDK (Gemini)
+npm install @google/generative-ai
+
+# Zod - validate and parse Gemini JSON output safely
+npm install zod
+
+15.6  Background Jobs - Inngest
+# Inngest SDK for Next.js
+npm install inngest
+
+15.7  Email - Resend + React Email
+# Resend API client + React Email component library
+npm install resend
+npm install @react-email/components @react-email/render
+
+# React Email dev preview server (run: npx react-email dev)
+npm install --save-dev react-email
+
+15.8  File Storage - Cloudinary
+# Cloudinary SDK for upload and signed URL generation
+npm install cloudinary
+npm install next-cloudinary
+
+15.9  PDF Export - Puppeteer
+# Puppeteer for meeting report PDF generation
+npm install puppeteer-core @sparticuz/chromium
+
+# Note: use puppeteer-core + @sparticuz/chromium on Vercel
+# Full puppeteer only for local dev / non-serverless environments
+
+15.10  Utility Packages
+# Date handling
+npm install date-fns
+
+# Class name merging (used by shadcn/ui)
+npm install clsx tailwind-merge
+
+# Server-side env validation
+npm install @t3-oss/env-nextjs
+
+# Unique ID generation fallback
+npm install nanoid
+
+# File type detection for upload validation
+npm install file-type
+
+# Lucide icons (used by shadcn/ui)
+npm install lucide-react
+
+# Framer Motion - page transitions and micro-animations
+npm install framer-motion
+
+15.11  Dev Dependencies
+# TypeScript types
+npm install --save-dev @types/node @types/react @types/react-dom
+
+# Linting and formatting
+npm install --save-dev eslint-config-next prettier prettier-plugin-tailwindcss
+
+# Drizzle Studio - visual DB browser
+// Already included via drizzle-kit (run: npx drizzle-kit studio)
+
+15.12  Full Install - Single Command
+Run this after creating the Next.js app to install everything at once:
+
+# All production dependencies in one go
+npm install \
+  @clerk/nextjs \
+  drizzle-orm @neondatabase/serverless \
+  @paralleldrive/cuid2 \
+  @google/generative-ai \
+  zod \
+  inngest \
+  resend @react-email/components @react-email/render \
+  cloudinary next-cloudinary \
+  puppeteer-core @sparticuz/chromium \
+  date-fns clsx tailwind-merge \
+  @t3-oss/env-nextjs nanoid file-type \
+  lucide-react framer-motion
+
+# All dev dependencies in one go
+npm install --save-dev \
+  drizzle-kit dotenv \
+  react-email \
+  @types/node @types/react @types/react-dom \
+  eslint-config-next prettier prettier-plugin-tailwindcss
+
+15.13  Drizzle Config & Migration Commands
+# drizzle.config.ts - create at project root
+// drizzle.config.ts
+import { defineConfig } from "drizzle-kit";
+import * as dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+
+export default defineConfig({
+  schema: "./src/db/schema.ts",
+  out: "./drizzle",
+  dialect: "postgresql",
+  dbCredentials: { url: process.env.DATABASE_URL! },
+});
+
+# Migration commands
+# Generate migration files from schema
+npx drizzle-kit generate
+
+# Push schema directly to Neon (dev only)
+npx drizzle-kit push
+
+# Open Drizzle Studio visual browser
+npx drizzle-kit studio
+
+15.14  package.json Scripts
+# Add these to the scripts section of package.json
+"scripts": {
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start",
+  "lint": "next lint",
+  "db:generate": "drizzle-kit generate",
+  "db:push": "drizzle-kit push",
+  "db:studio": "drizzle-kit studio",
+  "email:dev": "react-email dev --port 3001",
+  "inngest:dev": "npx inngest-cli@latest dev"
+}
+
+15.15  MCP Servers for Claude Code
+These MCP servers give Claude Code direct access to your project's external services during development. All configured at user scope so they work across all your projects.
+
+
+Windows PowerShell note:  Use single quotes inside the JSON string argument on PowerShell. Run each command separately.
+
+Neon Database MCP
+# Neon MCP - Claude Code can query and inspect your DB directly
+claude mcp add --scope user neon-mcp \
+  --transport http \
+  https://mcp.neon.tech/sse
+
+# Auth: run once to connect your Neon account
+# Claude Code will prompt for your NEON_API_KEY on first use
+
+Vercel MCP
+# Vercel MCP - deploy, check logs, manage env vars from Claude Code
+claude mcp add --scope user vercel-mcp \
+  --transport http \
+  https://mcp.vercel.com
+
+# Requires: VERCEL_TOKEN env var set in your shell profile
+
+GitHub MCP
+# GitHub MCP - create PRs, issues, read code from Claude Code
+claude mcp add --scope user github \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=your_pat_here \
+  -- npx -y @modelcontextprotocol/server-github
+
+Resend MCP
+# Resend MCP - test and send emails directly from Claude Code
+claude mcp add --scope user resend \
+  -e RESEND_API_KEY=your_resend_key_here \
+  -- npx -y resend-mcp
+
+Filesystem MCP
+# Filesystem MCP - Claude Code can read/write project files
+claude mcp add --scope user filesystem \
+  -- npx -y @modelcontextprotocol/server-filesystem \
+  C:/Users/ES/meetingmemo
+
+# Update the path to your actual project directory
+
+Playwright MCP
+# Playwright MCP - Claude Code can browser-test your app
+claude mcp add --scope user playwright \
+  -- npx -y @playwright/mcp@latest
+
+Context7 MCP
+# Context7 MCP - gives Claude Code up-to-date docs for your stack
+claude mcp add --scope user context7 \
+  -- npx -y @upstash/context7-mcp
+
+# Provides live docs for: Next.js, Drizzle, Clerk, Inngest, Resend
+
+Sequential Thinking MCP
+# Sequential Thinking MCP - structured reasoning for complex tasks
+claude mcp add --scope user sequential-thinking \
+  -- npx -y @modelcontextprotocol/server-sequential-thinking
+
+Inngest MCP (optional)
+# Inngest dev server - run locally during development
+# Not an MCP server - run in a separate terminal:
+npx inngest-cli@latest dev
+
+# This starts the Inngest dev UI at http://localhost:8288
+# Your Next.js app must be running at the same time
+
+15.16  Verify MCP Servers Are Running
+# List all configured MCP servers (run inside Claude Code)
+claude mcp list
+
+# Expected output:
+# neon-mcp       connected
+# vercel-mcp     connected
+# github         connected
+# resend         connected
+# filesystem     connected
+# playwright     connected
+# context7       connected
+# sequential-thinking  connected
+
+
+Ready to build:  Once all MCP servers show connected and npm install is complete, your MeetingMemo development environment is fully set up. Run npm run dev to start.
+
+Built by Narendra - nk-analytics  ·  linkedin.com/in/nk-analytics
+Stack: Next.js 15 · Gemini Flash · Inngest · Resend + React Email · Neon · Drizzle · Clerk · Vercel
+
+MeetingMemo  - Complete Product Specification
+
+Narendra - nk-analytics	MeetingMemo Spec  ·  2025
+
