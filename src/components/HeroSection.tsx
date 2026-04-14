@@ -284,7 +284,7 @@ export default function HeroSection() {
               className="flex flex-wrap items-center gap-3 mb-10"
             >
               <Link
-                href="/sign-up"
+                href={isSignedIn ? "/dashboard" : "/sign-up"}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold transition-all duration-200 hover:scale-[1.03] hover:shadow-xl active:scale-[0.98]"
                 style={{
                   background: "oklch(0.52 0.28 300)",
@@ -292,7 +292,7 @@ export default function HeroSection() {
                   boxShadow: "0 6px 24px oklch(0.55 0.25 285 / 0.35)",
                 }}
               >
-                Get Started Free
+                {isSignedIn ? "Go to Dashboard" : "Get Started Free"}
                 <ArrowRight size={15} />
               </Link>
 
