@@ -26,8 +26,9 @@ export default function DashboardSidebar() {
       }}
     >
       {/* Brand */}
-      <div
-        className="flex items-center gap-2 px-5 py-5"
+      <Link
+        href="/"
+        className="flex items-center gap-2 px-5 py-5 transition-opacity hover:opacity-80"
         style={{ borderBottom: '1px solid oklch(0.88 0.02 285)' }}
       >
         <div
@@ -42,7 +43,7 @@ export default function DashboardSidebar() {
         >
           ActaFlow
         </span>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
