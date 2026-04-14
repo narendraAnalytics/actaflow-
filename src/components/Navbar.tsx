@@ -3,141 +3,186 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { motion, AnimatePresence } from "framer-motion";
+import { Show, UserButton, useUser } from "@clerk/nextjs";
+
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 const navLinks = [
   { label: "Features", href: "#features" },
   { label: "How It Works", href: "#how-it-works" },
   { label: "Pricing", href: "#pricing" },
-  { label: "Login", href: "/sign-in" },
 ];
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [navVisible, setNavVisible] = useState(true);
+  const { user, isSignedIn } = useUser();
+  const router = useRouter();
+  const displayName = user?.username ?? user?.firstName ?? "there";
+
+  function handleNavClick(
+    e: React.MouseEvent<HTMLAnchorElement>,
+    closeDrawer?: boolean
+  ) {
+    if (!isSignedIn) {
+      e.preventDefault();
+      router.push("/sign-in");
+      if (closeDrawer) setOpen(false);
+    } else {
+      if (closeDrawer) setOpen(false);
+    }
+  }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 md:h-18">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <Image
-              src="https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776082128/actafloelogo_c0fizx.png"
-              alt="ActaFlow"
-              width={32}
-              height={32}
-              className="w-8 h-8 object-contain"
-              priority
-            />
-            <span
-              className="text-xl font-extrabold tracking-tight"
-              style={{
-                backgroundImage:
-                  "linear-gradient(135deg, oklch(0.48 0.26 300) 0%, oklch(0.63 0.22 300) 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              ActaFlow
-            </span>
-          </Link>
+    <>
+      <header className="fixed top-0 left-0 right-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="relative flex items-center justify-between h-16 md:h-18">
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                className="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200"
+            {/* ActaFlow brand text — left side */}
+            <Link href="/" className="flex items-center shrink-0">
+              <span
+                className="text-xl font-extrabold tracking-tight"
                 style={{
-                  color: "oklch(0.50 0.06 285)",
+                  backgroundImage:
+                    "linear-gradient(135deg, oklch(0.48 0.26 300) 0%, oklch(0.63 0.22 300) 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = "oklch(0.52 0.28 300)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.color = "oklch(0.50 0.06 285)")
-                }
               >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-
-          {/* Desktop CTA */}
-          <div className="hidden md:flex items-center gap-3">
-            <Link
-              href="/sign-up"
-              className="inline-flex items-center px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98]"
-              style={{
-                background: "oklch(0.52 0.28 300)",
-                color: "oklch(0.985 0.006 90)",
-                boxShadow: "0 4px 18px oklch(0.55 0.25 285 / 0.28)",
-              }}
-            >
-              Get Started
+                ActaFlow
+              </span>
             </Link>
-          </div>
 
-          {/* Mobile Hamburger */}
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
-              <button
-                className="md:hidden p-2 rounded-lg"
-                style={{ color: "oklch(0.50 0.18 285)" }}
-                aria-label="Open menu"
+            {/* Logo — absolute center, click to toggle nav */}
+            <button
+              onClick={() => setNavVisible((v) => !v)}
+              className="absolute left-1/2 -translate-x-1/2 shrink-0 cursor-pointer focus:outline-none"
+              aria-label="Toggle navigation"
+            >
+              <motion.div
+                animate={{ scale: navVisible ? 1 : 0.92, rotate: navVisible ? 0 : 15 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+              >
+                <Image
+                  src="https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776082128/actafloelogo_c0fizx.png"
+                  alt="ActaFlow"
+                  width={64}
+                  height={64}
+                  className="w-26 h-26 object-contain"
+                  priority
+                />
+              </motion.div>
+            </button>
+
+            {/* Desktop Nav */}
+            <AnimatePresence>
+              {navVisible && (
+                <motion.nav
+                  key="desktop-nav"
+                  initial={{ opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 24 }}
+                  transition={{ duration: 0.28, ease: EASE }}
+                  className="hidden md:flex items-center gap-1"
+                >
+                  {navLinks.map((link, i) => (
+                    <motion.div
+                      key={link.label}
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 16 }}
+                      transition={{ delay: i * 0.05, duration: 0.22, ease: "easeOut" }}
+                    >
+                      <Link
+                        href={link.href}
+                        onClick={handleNavClick}
+                        className="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 block"
+                        style={{ color: "oklch(0.50 0.06 285)" }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.color = "oklch(0.52 0.28 300)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.color = "oklch(0.50 0.06 285)")
+                        }
+                      >
+                        {link.label}
+                      </Link>
+                    </motion.div>
+                  ))}
+
+                  {/* Signed-in: avatar only */}
+                  <Show when="signed-in">
+                    <motion.div
+                      initial={{ opacity: 0, x: 16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 16 }}
+                      transition={{ delay: navLinks.length * 0.05, duration: 0.22, ease: "easeOut" }}
+                      className="ml-2 flex items-center"
+                    >
+                      <UserButton />
+                    </motion.div>
+                  </Show>
+                </motion.nav>
+              )}
+            </AnimatePresence>
+
+            {/* Mobile — animated hamburger */}
+            <button
+              className="md:hidden p-2 rounded-lg"
+              style={{ color: "oklch(0.50 0.18 285)" }}
+              aria-label={open ? "Close menu" : "Open menu"}
+              onClick={() => setOpen((v) => !v)}
+            >
+              <motion.div
+                animate={{ rotate: open ? 180 : 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
               >
                 {open ? <X size={22} /> : <Menu size={22} />}
-              </button>
-            </SheetTrigger>
-            <SheetContent
-              side="right"
-              className="w-72"
-              style={{
-                background: "oklch(0.985 0.006 90)",
-                borderLeft: "1px solid oklch(0.88 0.02 285)",
-              }}
-            >
-              <div className="flex flex-col gap-1 pt-8">
-                {/* Mobile Logo */}
-                <Link
-                  href="/"
-                  className="flex items-center gap-2 mb-6 px-2"
-                  onClick={() => setOpen(false)}
-                >
-                  <Image
-                    src="https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776082128/actafloelogo_c0fizx.png"
-                    alt="ActaFlow"
-                    width={28}
-                    height={28}
-                    className="w-7 h-7 object-contain"
-                  />
-                  <span
-                    className="text-lg font-extrabold tracking-tight"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, oklch(0.48 0.26 300) 0%, oklch(0.63 0.22 300) 100%)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                    }}
-                  >
-                    ActaFlow
-                  </span>
-                </Link>
+              </motion.div>
+            </button>
 
-                {navLinks.map((link) => (
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile dropdown menu */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="mobile-menu"
+            initial={{ opacity: 0, y: -12, scaleY: 0.94 }}
+            animate={{ opacity: 1, y: 0, scaleY: 1 }}
+            exit={{ opacity: 0, y: -12, scaleY: 0.94 }}
+            transition={{ duration: 0.28, ease: EASE }}
+            style={{
+              transformOrigin: "top",
+              background: "oklch(0.985 0.006 90)",
+              boxShadow: "0 12px 40px oklch(0.55 0.25 285 / 0.12)",
+              borderBottom: "1px solid oklch(0.88 0.02 285)",
+            }}
+            className="md:hidden fixed top-16 left-0 right-0 z-40 rounded-b-2xl"
+          >
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-5 pt-3 flex flex-col gap-1">
+
+              {navLinks.map((link, i) => (
+                <motion.div
+                  key={link.label}
+                  initial={{ opacity: 0, x: -14 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.06, duration: 0.22, ease: "easeOut" }}
+                >
                   <Link
-                    key={link.label}
                     href={link.href}
-                    onClick={() => setOpen(false)}
-                    className="px-4 py-3 rounded-xl text-base font-medium transition-colors duration-150"
+                    onClick={(e) => handleNavClick(e, true)}
+                    className="block px-4 py-3 rounded-xl text-base font-medium transition-colors duration-150"
                     style={{ color: "oklch(0.50 0.18 285)" }}
                     onMouseEnter={(e) =>
-                      (e.currentTarget.style.background =
-                        "oklch(0.945 0.012 285)")
+                      (e.currentTarget.style.background = "oklch(0.945 0.012 285)")
                     }
                     onMouseLeave={(e) =>
                       (e.currentTarget.style.background = "transparent")
@@ -145,26 +190,25 @@ export default function Navbar() {
                   >
                     {link.label}
                   </Link>
-                ))}
+                </motion.div>
+              ))}
 
-                <div className="mt-4 px-2">
-                  <Link
-                    href="/sign-up"
-                    onClick={() => setOpen(false)}
-                    className="flex items-center justify-center w-full py-3 rounded-full text-sm font-semibold"
-                    style={{
-                      background: "oklch(0.52 0.28 300)",
-                      color: "oklch(0.985 0.006 90)",
-                    }}
-                  >
-                    Get Started Free
-                  </Link>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-      </div>
-    </header>
+              {/* Mobile signed-in: avatar only */}
+              <Show when="signed-in">
+                <motion.div
+                  initial={{ opacity: 0, x: -14 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: navLinks.length * 0.06, duration: 0.22, ease: "easeOut" }}
+                  className="mt-3 px-2 flex justify-center"
+                >
+                  <UserButton />
+                </motion.div>
+              </Show>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

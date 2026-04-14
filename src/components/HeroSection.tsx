@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, AnimatePresence } from "framer-motion";
+import { useUser } from "@clerk/nextjs";
 import {
   Play,
   CheckCircle2,
@@ -67,6 +68,28 @@ const HERO_BG =
 export default function HeroSection() {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
+  const { user, isSignedIn } = useUser();
+  const displayName = user?.username ?? user?.firstName ?? "there";
+
+  const [count, setCount] = useState(100);
+  useEffect(() => {
+    if (!inView) return;
+    const start = 100;
+    const end = 500;
+    const duration = 1800; // ms
+    const startTime = performance.now();
+    let raf: number;
+    function tick(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.round(start + (end - start) * eased));
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [inView]);
 
   return (
     <section
@@ -93,6 +116,42 @@ export default function HeroSection() {
         }}
       />
 
+      {/* ── Signed-in welcome — absolute bottom-center ── */}
+      <AnimatePresence>
+        {isSignedIn && (
+          <motion.div
+            key="welcome-banner"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.45, ease: EASE }}
+            className="absolute bottom-6 left-12 right-0 z-10 flex justify-center px-4"
+          >
+            <div
+              className="inline-flex items-center gap-3 px-6 py-3 rounded-full"
+              style={{
+                
+              }}
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ background: "oklch(0.52 0.28 300)" }}
+              />
+              <span
+                className="text-sm font-medium"
+                style={{ color: "oklch(0.45 0.10 285)" }}
+              >
+                Welcome back,{" "}
+                <span className="font-bold" style={{ color: "oklch(0.52 0.28 300)" }}>
+                  {displayName}
+                </span>{" "}
+                — ready to turn your next meeting into action?
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Amber glow accent */}
       <div
         aria-hidden
@@ -102,6 +161,7 @@ export default function HeroSection() {
 
       {/* ── Content — pt-20 clears the fixed navbar ── */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-24 pb-16">
+
         <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-8">
 
           {/* ── LEFT COLUMN ── */}
@@ -289,7 +349,7 @@ export default function HeroSection() {
                   className="font-semibold"
                   style={{ color: "oklch(0.38 0.18 285)" }}
                 >
-                  500+ teams
+                  {count}+ teams
                 </span>{" "}
                 already executing faster
               </p>
