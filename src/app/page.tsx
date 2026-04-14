@@ -6,7 +6,11 @@ import { getOrCreateUser } from "@/lib/auth";
 export default async function Home() {
   const { userId } = await auth();
   if (userId) {
-    await getOrCreateUser();
+    try {
+      await getOrCreateUser();
+    } catch (err) {
+      console.error('[getOrCreateUser] failed:', err);
+    }
   }
 
   return (
