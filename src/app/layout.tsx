@@ -19,6 +19,11 @@ export const metadata: Metadata = {
   title: "ActaFlow — Turn Meetings Into Action",
   description:
     "AI-powered meeting action item extractor. Drop in a recording or transcript — every attendee gets their action items by email in under 2 minutes.",
+  icons: {
+    icon: "https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776082128/actafloelogo_c0fizx.png",
+    shortcut: "https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776082128/actafloelogo_c0fizx.png",
+    apple: "https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776082128/actafloelogo_c0fizx.png",
+  },
 };
 
 export default function RootLayout({
