@@ -104,9 +104,11 @@ npm run dev          # Next.js dev server (port 3000)
 npm run build        # Production build
 npm run start        # Production server
 npx tsc --noEmit     # TypeScript type-check
+npm run db:push      # Push Drizzle schema to Neon (no migration files)
+npm run db:generate  # Generate migration files from schema
+npm run db:studio    # Open Drizzle Studio visual DB browser
 
-# Add to package.json when layers are built:
-# npm run db:push     → drizzle-kit push (Neon schema sync)
+# Add when layers are built:
 # npm run inngest:dev → Inngest dev server (separate terminal)
 # npm run email:dev   → react-email preview server (separate terminal)
 ```
@@ -116,7 +118,7 @@ npx tsc --noEmit     # TypeScript type-check
 ## Architecture
 
 ### Current state
-Landing page + Clerk auth are live. DB, AI, and email layers are not yet wired.
+Landing page + Clerk auth + Neon DB (Drizzle ORM) are live. AI and email layers are not yet wired.
 
 ```
 src/
@@ -124,7 +126,7 @@ src/
   app/
     layout.tsx          # ClerkProvider wraps children inside <body>
     globals.css         # Tailwind v4 @theme inline — all CSS vars live here, NOT tailwind.config
-    page.tsx            # Landing page — h-svh overflow-hidden, Navbar + HeroSection
+    page.tsx            # Landing page — calls getOrCreateUser() on sign-in (lazy DB sync)
     sign-in/
       [[...sign-in]]/
         page.tsx        # Centered <SignIn /> with ActaFlow brand header
@@ -135,8 +137,13 @@ src/
     Navbar.tsx          # Fixed navbar: logo center, nav links left, UserButton right (signed-in)
     HeroSection.tsx     # Full-viewport hero with animated counter, welcome banner (signed-in)
     ui/                 # shadcn/ui primitives (lucide icons)
+  db/
+    schema.ts           # Drizzle schema — 6 tables: users, meetings, attendees, action_items, email_logs, contacts
+    index.ts            # Neon HTTP db client — import { db } from '@/db'
   lib/
     utils.ts            # cn() helper (clsx + tailwind-merge)
+    auth.ts             # getOrCreateUser() — lazy Clerk→Neon user sync, no webhook needed
+drizzle.config.ts       # Drizzle Kit config — schema: src/db/schema.ts, dialect: postgresql
 ```
 
 ### Key conventions
@@ -172,11 +179,39 @@ src/
 
 ### Planned layers (not yet built)
 - `src/app/dashboard/` — authenticated app shell (protect via `auth.protect()` in proxy.ts)
-- `src/db/` — Drizzle schema (meetings, action items, attendees)
-- `src/lib/auth.ts` — `getOrCreateUser()` for lazy DB user creation on first API call
 - `src/inngest/` — background jobs (AI extraction, email dispatch, reminders)
 - `src/emails/` — React Email templates (per-attendee action item email)
 - `src/lib/gemini.ts` — Gemini 2.0 Flash transcript → action items
+
+---
+
+## Database (Neon + Drizzle)
+
+**Driver:** `@neondatabase/serverless` HTTP (`drizzle-orm/neon-http`) — correct for Vercel serverless.
+
+**Import db anywhere:**
+```ts
+import { db } from '@/db';
+```
+
+**Lazy user sync — no Clerk webhook needed:**
+```ts
+import { getOrCreateUser } from '@/lib/auth';
+const user = await getOrCreateUser(); // creates DB row on first call
+```
+
+### Critical: Clerk IDs are NOT UUIDs
+Clerk user IDs have the format `user_xxxxxxx` — they are **strings, not UUIDs**.
+- `users.id` is `text` type (NOT `uuid`) — **never change this to uuid**
+- All FK columns referencing `users.id` (`meetings.user_id`, `action_items.user_id`, `contacts.user_id`) must also be `text`
+- All other PKs (meetings, attendees, action_items, email_logs, contacts) use `uuid().defaultRandom()` — that's fine
+
+### Critical: DATABASE_URL format for Neon HTTP driver
+Use the **direct** connection string — **not** the pooler URL.
+- Correct: `postgresql://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require`
+- Wrong: `postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
+
+Remove `-pooler` from hostname and remove `&channel_binding=require`. The Neon HTTP driver uses fetch requests, not the Postgres wire protocol — the pooler endpoint and channel binding will cause query failures.
 
 ---
 
