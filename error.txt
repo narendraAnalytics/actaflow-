@@ -1,0 +1,38 @@
+11:38:36.657 Running build in Washington, D.C., USA (East) – iad1
+11:38:36.657 Build machine configuration: 2 cores, 8 GB
+11:38:36.783 Cloning github.com/narendraAnalytics/actaflow- (Branch: main, Commit: d71b681)
+11:38:37.022 Cloning completed: 239.000ms
+11:38:38.785 Restored build cache from previous deployment (4tN4uvhq1Tt3q6TZYEUfVMrgf9JS)
+11:38:39.315 Running "vercel build"
+11:38:39.953 Vercel CLI 50.43.0
+11:38:40.226 Installing dependencies...
+11:38:42.127 
+11:38:42.128 up to date in 2s
+11:38:42.128 
+11:38:42.129 275 packages are looking for funding
+11:38:42.129   run `npm fund` for details
+11:38:42.161 Detected Next.js version: 16.2.3
+11:38:42.168 Running "npm run build"
+11:38:42.274 
+11:38:42.275 > actaflow@0.1.0 build
+11:38:42.275 > next build
+11:38:42.275 
+11:38:43.162 ▲ Next.js 16.2.3 (Turbopack)
+11:38:43.163 
+11:38:43.194   Creating an optimized production build ...
+11:38:54.494 ✓ Compiled successfully in 10.9s
+11:38:54.497   Running TypeScript ...
+11:39:00.483 Failed to type check.
+11:39:00.483 
+11:39:00.483 ./src/lib/auth.ts:29:5
+11:39:00.484 Type error: '??' and '||' operations cannot be mixed without parentheses.
+11:39:00.484 
+11:39:00.484   [90m27 |[0m     clerkUser.emailAddresses[[35m0[0m]?.emailAddress ?? [32m''[0m;
+11:39:00.484   [90m28 |[0m   [36mconst[0m fullName =
+11:39:00.484 [31m[1m>[0m [90m29 |[0m     clerkUser.username ??
+11:39:00.485   [90m   |[0m     [31m[1m^[0m
+11:39:00.485   [90m30 |[0m     [clerkUser.firstName, clerkUser.lastName].filter([33mBoolean[0m).join([32m' '[0m) ||
+11:39:00.485   [90m31 |[0m     [36mnull[0m;
+11:39:00.485   [90m32 |[0m
+11:39:00.523 Next.js build worker exited with code: 1 and signal: null
+11:39:00.562 Error: Command "npm run build" exited with 1

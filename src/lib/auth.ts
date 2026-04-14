@@ -27,8 +27,7 @@ export async function getOrCreateUser(): Promise<User> {
     clerkUser.emailAddresses[0]?.emailAddress ?? '';
   const fullName =
     clerkUser.username ??
-    [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') ||
-    null;
+    ([clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || null);
 
   const [created] = await db
     .insert(users)
