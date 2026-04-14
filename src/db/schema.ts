@@ -12,7 +12,7 @@ import {
 import { createId } from '@paralleldrive/cuid2';
 
 export const users = pgTable('users', {
-  id: uuid('id').primaryKey(), // mirrors Clerk user_id — no defaultRandom()
+  id: text('id').primaryKey(), // Clerk user ID format: "user_xxx"
   email: varchar('email', { length: 255 }).notNull(),
   fullName: varchar('full_name', { length: 200 }),
   plan: varchar('plan', { length: 20 }).notNull().default('free'),
@@ -23,7 +23,7 @@ export const users = pgTable('users', {
 
 export const meetings = pgTable('meetings', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id),
+  userId: text('user_id').notNull().references(() => users.id),
   title: varchar('title', { length: 300 }),
   meetingDate: date('meeting_date'),
   durationMins: integer('duration_mins'),
@@ -50,7 +50,7 @@ export const attendees = pgTable('attendees', {
 export const actionItems = pgTable('action_items', {
   id: uuid('id').primaryKey().defaultRandom(),
   meetingId: uuid('meeting_id').notNull().references(() => meetings.id),
-  userId: uuid('user_id').notNull().references(() => users.id),
+  userId: text('user_id').notNull().references(() => users.id),
   ownerName: varchar('owner_name', { length: 200 }).notNull(),
   ownerEmail: varchar('owner_email', { length: 255 }),
   description: text('description').notNull(),
@@ -78,7 +78,7 @@ export const emailLogs = pgTable('email_logs', {
 
 export const contacts = pgTable('contacts', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id),
+  userId: text('user_id').notNull().references(() => users.id),
   name: varchar('name', { length: 200 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
