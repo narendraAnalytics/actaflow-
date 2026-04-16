@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useSpring, useTransform, animate } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 import {
   Plus,
   Calendar,
@@ -12,6 +13,8 @@ import {
   FileText,
   Zap,
   TrendingUp,
+  Sparkles,
+  ArrowUpRight,
 } from 'lucide-react';
 import type { Meeting } from '@/db/schema';
 
@@ -26,12 +29,37 @@ interface DashboardClientProps {
   };
 }
 
+/* ── Animated counter ── */
+function AnimatedNumber({ value, suffix = '' }: { value: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const controls = animate(0, value, {
+      duration: 1.1,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate(v) {
+        node.textContent = Math.round(v) + suffix;
+      },
+    });
+    return () => controls.stop();
+  }, [value, suffix]);
+
+  return <span ref={ref}>0{suffix}</span>;
+}
+
+/* ── Status badge ── */
 function StatusBadge({ status }: { status: string }) {
   if (status === 'processing') {
     return (
       <span
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-        style={{ background: 'oklch(0.80 0.17 75 / 0.15)', color: 'oklch(0.44 0.14 75)' }}
+        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
+        style={{
+          background: 'oklch(0.80 0.17 75 / 0.15)',
+          color: 'oklch(0.44 0.14 75)',
+          border: '1px solid oklch(0.80 0.17 75 / 0.25)',
+        }}
       >
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
         Processing
@@ -41,18 +69,29 @@ function StatusBadge({ status }: { status: string }) {
   if (status === 'done') {
     return (
       <span
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-        style={{ background: 'oklch(0.55 0.25 285 / 0.1)', color: 'oklch(0.52 0.28 300)' }}
+        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
+        style={{
+          background: 'oklch(0.55 0.25 285 / 0.1)',
+          color: 'oklch(0.48 0.26 295)',
+          border: '1px solid oklch(0.55 0.25 285 / 0.2)',
+        }}
       >
-        <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'oklch(0.52 0.28 300)' }} />
+        <span
+          className="w-1.5 h-1.5 rounded-full"
+          style={{ background: 'oklch(0.52 0.28 300)' }}
+        />
         Done
       </span>
     );
   }
   return (
     <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
-      style={{ background: 'oklch(0.65 0.22 25 / 0.12)', color: 'oklch(0.50 0.20 25)' }}
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
+      style={{
+        background: 'oklch(0.65 0.22 25 / 0.1)',
+        color: 'oklch(0.48 0.20 25)',
+        border: '1px solid oklch(0.65 0.22 25 / 0.2)',
+      }}
     >
       <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
       Failed
@@ -60,14 +99,30 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.07, duration: 0.45, ease: EASE },
-  }),
-};
+/* ── Stat card ── */
+const statConfig = [
+  {
+    label: 'Total Meetings',
+    icon: FileText,
+    gradient: 'linear-gradient(135deg, oklch(0.52 0.28 300) 0%, oklch(0.62 0.20 280) 100%)',
+    glow: '0 8px 32px oklch(0.52 0.28 300 / 0.28)',
+    iconBg: 'oklch(0.985 0.006 90 / 0.2)',
+  },
+  {
+    label: 'Action Items',
+    icon: CheckSquare,
+    gradient: 'linear-gradient(135deg, oklch(0.75 0.17 75) 0%, oklch(0.65 0.20 60) 100%)',
+    glow: '0 8px 32px oklch(0.75 0.17 75 / 0.30)',
+    iconBg: 'oklch(0.985 0.006 90 / 0.2)',
+  },
+  {
+    label: 'Completion Rate',
+    icon: TrendingUp,
+    gradient: 'linear-gradient(135deg, oklch(0.58 0.22 295) 0%, oklch(0.52 0.28 285) 100%)',
+    glow: '0 8px 32px oklch(0.55 0.25 285 / 0.28)',
+    iconBg: 'oklch(0.985 0.006 90 / 0.2)',
+  },
+];
 
 export default function DashboardClient({ meetings, stats }: DashboardClientProps) {
   const completionRate =
@@ -75,116 +130,167 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
       ? Math.round((stats.doneItems / stats.totalActionItems) * 100)
       : 0;
 
+  const statValues = [stats.totalMeetings, stats.totalActionItems, completionRate];
+  const statSuffixes = ['', '', '%'];
+
   return (
-    <div className="p-8 max-w-5xl">
-      {/* Header */}
+    <div className="p-8 max-w-5xl mx-auto">
+
+      {/* ── Header ── */}
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: EASE }}
-        className="flex items-center justify-between mb-8"
+        transition={{ duration: 0.5, ease: EASE }}
+        className="flex items-start justify-between mb-10"
       >
         <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+              style={{
+                background: 'oklch(0.55 0.25 285 / 0.1)',
+                color: 'oklch(0.48 0.26 295)',
+                border: '1px solid oklch(0.55 0.25 285 / 0.18)',
+              }}
+            >
+              <Sparkles size={11} />
+              ActaFlow Workspace
+            </span>
+          </div>
           <h1
-            className="text-2xl font-bold mb-1"
-            style={{ color: 'oklch(0.22 0.04 285)' }}
+            className="text-3xl font-extrabold mb-1.5 tracking-tight"
+            style={{
+              background: 'linear-gradient(135deg, oklch(0.22 0.04 285) 0%, oklch(0.48 0.26 295) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
           >
             Dashboard
           </h1>
-          <p className="text-sm" style={{ color: 'oklch(0.50 0.06 285)' }}>
+          <p className="text-sm" style={{ color: 'oklch(0.55 0.06 285)' }}>
             Your meetings and action items at a glance.
           </p>
         </div>
+
         <Link
           href="/dashboard/new"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 hover:scale-[1.02] hover:shadow-lg"
+          className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-200 hover:scale-[1.04]"
           style={{
-            background: 'oklch(0.52 0.28 300)',
+            background: 'linear-gradient(135deg, oklch(0.52 0.28 300) 0%, oklch(0.60 0.22 280) 100%)',
             color: 'oklch(0.985 0.006 90)',
-            boxShadow: '0 4px 16px oklch(0.55 0.25 285 / 0.28)',
+            boxShadow: '0 4px 20px oklch(0.52 0.28 300 / 0.35)',
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.boxShadow =
+              '0 8px 32px oklch(0.52 0.28 300 / 0.50)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.boxShadow =
+              '0 4px 20px oklch(0.52 0.28 300 / 0.35)';
           }}
         >
-          <Plus size={16} />
+          <Plus size={16} className="group-hover:rotate-90 transition-transform duration-200" />
           New Meeting
         </Link>
       </motion.div>
 
-      {/* Stats row */}
+      {/* ── Stat cards ── */}
       {stats.totalMeetings > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.1, ease: EASE }}
-          className="grid grid-cols-3 gap-4 mb-8"
-        >
-          {[
-            { label: 'Total Meetings', value: stats.totalMeetings, icon: FileText },
-            { label: 'Action Items', value: stats.totalActionItems, icon: CheckSquare },
-            { label: 'Completion Rate', value: `${completionRate}%`, icon: TrendingUp },
-          ].map(({ label, value, icon: Icon }) => (
-            <div
+        <div className="grid grid-cols-3 gap-5 mb-10">
+          {statConfig.map(({ label, icon: Icon, gradient, glow, iconBg }, i) => (
+            <motion.div
               key={label}
-              className="rounded-xl p-5"
-              style={{
-                background: 'oklch(1 0.004 90)',
-                border: '1px solid oklch(0.88 0.02 285)',
-                boxShadow: '0 2px 8px oklch(0.55 0.25 285 / 0.05)',
-              }}
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.08 * i, ease: EASE }}
+              className="relative overflow-hidden rounded-2xl p-5"
+              style={{ background: gradient, boxShadow: glow }}
             >
+              {/* Decorative circle */}
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center mb-3"
-                style={{ background: 'oklch(0.55 0.25 285 / 0.1)' }}
-              >
-                <Icon size={16} style={{ color: 'oklch(0.52 0.28 300)' }} />
-              </div>
+                className="absolute -top-6 -right-6 w-24 h-24 rounded-full"
+                style={{ background: 'oklch(0.985 0.006 90 / 0.08)' }}
+              />
               <div
-                className="text-2xl font-bold mb-0.5"
-                style={{ color: 'oklch(0.22 0.04 285)' }}
-              >
-                {value}
+                className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full"
+                style={{ background: 'oklch(0.985 0.006 90 / 0.06)' }}
+              />
+
+              <div className="relative">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center mb-4"
+                  style={{ background: iconBg, backdropFilter: 'blur(4px)' }}
+                >
+                  <Icon size={17} color="oklch(0.985 0.006 90)" />
+                </div>
+                <div
+                  className="text-3xl font-extrabold mb-1 tracking-tight"
+                  style={{ color: 'oklch(0.985 0.006 90)' }}
+                >
+                  <AnimatedNumber value={statValues[i]} suffix={statSuffixes[i]} />
+                </div>
+                <div
+                  className="text-xs font-semibold"
+                  style={{ color: 'oklch(0.985 0.006 90 / 0.75)' }}
+                >
+                  {label}
+                </div>
               </div>
-              <div className="text-xs font-medium" style={{ color: 'oklch(0.50 0.06 285)' }}>
-                {label}
-              </div>
-            </div>
+            </motion.div>
           ))}
-        </motion.div>
+        </div>
       )}
 
-      {/* Empty state */}
+      {/* ── Empty state ── */}
       {meetings.length === 0 && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.97 }}
+          initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, ease: EASE }}
-          className="flex flex-col items-center justify-center py-24 text-center"
+          transition={{ duration: 0.5, delay: 0.15, ease: EASE }}
+          className="flex flex-col items-center justify-center py-28 text-center"
         >
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
-            style={{ background: 'oklch(0.55 0.25 285 / 0.1)' }}
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6"
+            style={{
+              background: 'linear-gradient(135deg, oklch(0.52 0.28 300) 0%, oklch(0.75 0.17 75) 100%)',
+              boxShadow: '0 12px 40px oklch(0.52 0.28 300 / 0.30)',
+            }}
           >
-            <Zap size={28} style={{ color: 'oklch(0.52 0.28 300)' }} />
-          </div>
+            <Zap size={32} color="oklch(0.985 0.006 90)" fill="oklch(0.985 0.006 90)" />
+          </motion.div>
+
           <h2
-            className="text-xl font-bold mb-2"
+            className="text-2xl font-extrabold mb-2 tracking-tight"
             style={{ color: 'oklch(0.22 0.04 285)' }}
           >
             No meetings yet
           </h2>
           <p
-            className="text-sm max-w-sm mb-8"
-            style={{ color: 'oklch(0.50 0.06 285)', lineHeight: '1.6' }}
+            className="text-sm max-w-sm mb-8 leading-relaxed"
+            style={{ color: 'oklch(0.55 0.06 285)' }}
           >
             Paste a transcript or drop in a recording — every attendee gets their action
             items emailed automatically.
           </p>
+
           <Link
             href="/dashboard/new"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold transition-all duration-200 hover:scale-[1.03] hover:shadow-xl"
+            className="inline-flex items-center gap-2 px-7 py-3 rounded-full text-sm font-bold transition-all duration-200 hover:scale-[1.04]"
             style={{
-              background: 'oklch(0.52 0.28 300)',
+              background: 'linear-gradient(135deg, oklch(0.52 0.28 300) 0%, oklch(0.60 0.22 280) 100%)',
               color: 'oklch(0.985 0.006 90)',
-              boxShadow: '0 6px 24px oklch(0.55 0.25 285 / 0.30)',
+              boxShadow: '0 6px 28px oklch(0.52 0.28 300 / 0.35)',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.boxShadow =
+                '0 10px 40px oklch(0.52 0.28 300 / 0.50)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.boxShadow =
+                '0 6px 28px oklch(0.52 0.28 300 / 0.35)';
             }}
           >
             <Plus size={16} />
@@ -193,67 +299,108 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
         </motion.div>
       )}
 
-      {/* Meeting list */}
+      {/* ── Meeting list ── */}
       {meetings.length > 0 && (
         <div>
-          <h2
-            className="text-sm font-semibold mb-4"
-            style={{ color: 'oklch(0.50 0.06 285)', letterSpacing: '0.05em' }}
+          {/* Section header */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.25 }}
+            className="flex items-center justify-between mb-5"
           >
-            RECENT MEETINGS
-          </h2>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-1 h-5 rounded-full"
+                style={{
+                  background: 'linear-gradient(180deg, oklch(0.52 0.28 300) 0%, oklch(0.75 0.17 75) 100%)',
+                }}
+              />
+              <h2
+                className="text-sm font-bold tracking-widest uppercase"
+                style={{ color: 'oklch(0.50 0.06 285)' }}
+              >
+                Recent Meetings
+              </h2>
+            </div>
+            <span
+              className="text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{
+                background: 'oklch(0.55 0.25 285 / 0.08)',
+                color: 'oklch(0.50 0.18 285)',
+              }}
+            >
+              {meetings.length} total
+            </span>
+          </motion.div>
+
           <div className="space-y-3">
             {meetings.map((meeting, i) => (
               <motion.div
                 key={meeting.id}
-                custom={i}
-                initial="hidden"
-                animate="visible"
-                variants={cardVariants}
+                initial={{ opacity: 0, x: -16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.42, delay: 0.28 + i * 0.07, ease: EASE }}
               >
                 <Link
                   href={`/dashboard/${meeting.id}`}
-                  className="group flex items-center justify-between p-5 rounded-xl transition-all duration-200 hover:shadow-md"
+                  className="group relative flex items-center justify-between p-5 rounded-2xl transition-all duration-200 overflow-hidden"
                   style={{
                     background: 'oklch(1 0.004 90)',
                     border: '1px solid oklch(0.88 0.02 285)',
-                    boxShadow: '0 2px 8px oklch(0.55 0.25 285 / 0.05)',
+                    boxShadow: '0 2px 12px oklch(0.55 0.25 285 / 0.06)',
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                      'oklch(0.70 0.18 285)';
-                    (e.currentTarget as HTMLAnchorElement).style.boxShadow =
-                      '0 4px 20px oklch(0.55 0.25 285 / 0.12)';
+                    const el = e.currentTarget as HTMLAnchorElement;
+                    el.style.borderColor = 'oklch(0.68 0.18 285)';
+                    el.style.boxShadow = '0 8px 32px oklch(0.52 0.28 300 / 0.14)';
+                    el.style.transform = 'translateY(-1px)';
                   }}
                   onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                      'oklch(0.88 0.02 285)';
-                    (e.currentTarget as HTMLAnchorElement).style.boxShadow =
-                      '0 2px 8px oklch(0.55 0.25 285 / 0.05)';
+                    const el = e.currentTarget as HTMLAnchorElement;
+                    el.style.borderColor = 'oklch(0.88 0.02 285)';
+                    el.style.boxShadow = '0 2px 12px oklch(0.55 0.25 285 / 0.06)';
+                    el.style.transform = 'translateY(0)';
                   }}
                 >
-                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                  {/* Left accent bar on hover */}
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    style={{
+                      background:
+                        'linear-gradient(180deg, oklch(0.52 0.28 300) 0%, oklch(0.75 0.17 75) 100%)',
+                    }}
+                  />
+
+                  <div className="flex items-center gap-4 flex-1 min-w-0 pl-1">
+                    {/* Icon */}
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                      style={{ background: 'oklch(0.55 0.25 285 / 0.1)' }}
+                      className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 group-hover:scale-105"
+                      style={{
+                        background:
+                          'linear-gradient(135deg, oklch(0.55 0.25 285 / 0.12) 0%, oklch(0.80 0.17 75 / 0.08) 100%)',
+                        border: '1px solid oklch(0.55 0.25 285 / 0.15)',
+                      }}
                     >
                       <FileText size={18} style={{ color: 'oklch(0.52 0.28 300)' }} />
                     </div>
+
+                    {/* Text */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-1.5">
+                      <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
                         <h3
-                          className="font-semibold truncate text-sm"
+                          className="font-bold text-sm truncate"
                           style={{ color: 'oklch(0.22 0.04 285)' }}
                         >
                           {meeting.title ?? 'Untitled Meeting'}
                         </h3>
                         <StatusBadge status={meeting.status} />
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 flex-wrap">
                         {meeting.meetingDate && (
                           <span
-                            className="flex items-center gap-1 text-xs"
-                            style={{ color: 'oklch(0.50 0.06 285)' }}
+                            className="flex items-center gap-1.5 text-xs font-medium"
+                            style={{ color: 'oklch(0.55 0.06 285)' }}
                           >
                             <Calendar size={11} />
                             {meeting.meetingDate}
@@ -261,16 +408,16 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
                         )}
                         {meeting.durationMins && (
                           <span
-                            className="flex items-center gap-1 text-xs"
-                            style={{ color: 'oklch(0.50 0.06 285)' }}
+                            className="flex items-center gap-1.5 text-xs font-medium"
+                            style={{ color: 'oklch(0.55 0.06 285)' }}
                           >
                             <Clock size={11} />
                             {meeting.durationMins} min
                           </span>
                         )}
                         <span
-                          className="flex items-center gap-1 text-xs"
-                          style={{ color: 'oklch(0.50 0.06 285)' }}
+                          className="flex items-center gap-1.5 text-xs font-medium"
+                          style={{ color: 'oklch(0.55 0.06 285)' }}
                         >
                           <Users size={11} />
                           {meeting.source}
@@ -278,11 +425,15 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
                       </div>
                     </div>
                   </div>
-                  <ChevronRight
-                    size={18}
-                    className="shrink-0 ml-3 transition-transform group-hover:translate-x-0.5"
-                    style={{ color: 'oklch(0.70 0.10 285)' }}
-                  />
+
+                  <div
+                    className="shrink-0 ml-3 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0 -translate-x-1"
+                    style={{
+                      background: 'oklch(0.52 0.28 300 / 0.1)',
+                    }}
+                  >
+                    <ArrowUpRight size={14} style={{ color: 'oklch(0.52 0.28 300)' }} />
+                  </div>
                 </Link>
               </motion.div>
             ))}
