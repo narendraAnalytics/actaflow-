@@ -23,7 +23,7 @@ export const users = pgTable('users', {
 
 export const meetings = pgTable('meetings', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: text('user_id').notNull().references(() => users.id),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 300 }),
   meetingDate: date('meeting_date'),
   durationMins: integer('duration_mins'),
@@ -40,7 +40,7 @@ export const meetings = pgTable('meetings', {
 
 export const attendees = pgTable('attendees', {
   id: uuid('id').primaryKey().defaultRandom(),
-  meetingId: uuid('meeting_id').notNull().references(() => meetings.id),
+  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 200 }).notNull(),
   email: varchar('email', { length: 255 }),
   emailSent: boolean('email_sent').notNull().default(false),
@@ -49,8 +49,8 @@ export const attendees = pgTable('attendees', {
 
 export const actionItems = pgTable('action_items', {
   id: uuid('id').primaryKey().defaultRandom(),
-  meetingId: uuid('meeting_id').notNull().references(() => meetings.id),
-  userId: text('user_id').notNull().references(() => users.id),
+  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   ownerName: varchar('owner_name', { length: 200 }).notNull(),
   ownerEmail: varchar('owner_email', { length: 255 }),
   description: text('description').notNull(),
@@ -67,8 +67,8 @@ export const actionItems = pgTable('action_items', {
 
 export const emailLogs = pgTable('email_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  meetingId: uuid('meeting_id').notNull().references(() => meetings.id),
-  attendeeId: uuid('attendee_id').notNull().references(() => attendees.id),
+  meetingId: uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  attendeeId: uuid('attendee_id').notNull().references(() => attendees.id, { onDelete: 'cascade' }),
   resendEmailId: varchar('resend_email_id', { length: 100 }),
   status: varchar('status', { length: 20 }).notNull().default('sent'),
   openedAt: timestamp('opened_at', { withTimezone: true }),
@@ -78,7 +78,7 @@ export const emailLogs = pgTable('email_logs', {
 
 export const contacts = pgTable('contacts', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: text('user_id').notNull().references(() => users.id),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 200 }).notNull(),
   email: varchar('email', { length: 255 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

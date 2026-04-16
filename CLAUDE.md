@@ -134,10 +134,12 @@ src/
       [id]/page.tsx               # Meeting detail — action items, attendee list, email status
     api/
       inngest/route.ts            # Inngest webhook handler (must be public)
-      meetings/create/route.ts    # POST — validates transcript, creates meeting, fires Inngest event
       meetings/route.ts           # GET — list meetings for user
+      meetings/create/route.ts    # POST — paste transcript → create meeting → fire Inngest event
+      meetings/upload/route.ts    # POST — upload audio/video → Cloudinary → fire Inngest event (runtime: nodejs, maxDuration: 60s)
+      meetings/transcribe/route.ts # POST — transcribe uploaded file via Gemini Files API (maxDuration: 120s)
       meetings/[id]/route.ts      # GET — single meeting with attendees + action items
-      action-items/[id]/done/     # POST — one-click "mark done" via doneToken (no auth required)
+      action-items/[id]/done/     # GET — mark done via doneToken query param, redirects to /?done=success|invalid (no auth required)
   components/
     Navbar.tsx                    # Fixed navbar
     HeroSection.tsx               # Landing hero with animated counter
@@ -156,20 +158,25 @@ src/
     ActionItemEmail.tsx           # React Email template — per-attendee personalised email
   lib/
     auth.ts                       # getOrCreateUser() — lazy Clerk→Neon sync
-    gemini.ts                     # extractMeetingData() — returns GeminiExtractionResult
+    gemini.ts                     # extractMeetingData() + transcribeVideo() — Gemini 3-Flash
     email.ts                      # sendActionItemEmail() — wraps Resend
+    cloudinary.ts                 # uploadVideoToCloudinary() — streams to actaflow/meetings folder
     utils.ts                      # cn() helper
 drizzle.config.ts                 # schema: src/db/schema.ts, dialect: postgresql
 ```
 
 ### Meeting processing pipeline
 
-`POST /api/meetings/create` → fires Inngest event `actaflow/meeting.uploaded` → `processMeeting` function runs 5 steps:
+Two entry points both fire the same Inngest event:
+- **Paste flow**: `POST /api/meetings/create` (transcript in body)
+- **Upload flow**: `POST /api/meetings/upload` (audio/video → Cloudinary → `audioUrl` stored)
+
+Both fire `actaflow/meeting.uploaded` → `processMeeting` runs 5 idempotent steps (3 retries):
 1. Mark meeting `status: 'processing'`
-2. Call `extractMeetingData()` (Gemini) — returns title, summary, attendees `{name, email}[]`, action_items, decisions, blockers
-3. Save attendees + action items to DB — email resolution uses 3-tier priority: **form field email (positional) → transcript-extracted email → fuzzy first-name match**
-4. Send per-attendee emails via Resend (skips attendees with no resolved email or no action items)
-5. Mark meeting `status: 'done'` (or `'failed'` on error)
+2. If `source: 'upload'` and no transcript: fetch from Cloudinary → `transcribeVideo()` via Gemini Files API (polls until ACTIVE, then cleans up) → persist transcript. Then call `extractMeetingData()` → returns title, summary, attendees `{name, email}[]`, action_items, decisions, blockers
+3. Save attendees + action items — **3-tier email resolution**: form field (positional index) → Gemini-extracted email → fuzzy first-name match against form emails. Action items without a resolved email are skipped
+4. Send per-attendee emails via Resend (skips if no email or no action items). Each email logged in `email_logs`. `doneToken` per action item is a cuid2 — enables `/api/action-items/{id}/done?token={doneToken}` links with no auth
+5. Mark meeting `status: 'done'` (or `'failed'` on pipeline error)
 
 ### Email auto-detection (frontend)
 `src/app/dashboard/new/page.tsx` runs a regex (`/[\w.+\-]+@[\w\-]+\.[\w.]+/g`) over the transcript as the user types and auto-fills the Attendee Emails field. Manual edits to the email field disable auto-fill (tracked via `useRef`).
@@ -196,6 +203,7 @@ drizzle.config.ts                 # schema: src/db/schema.ts, dialect: postgresq
 - Always prefer `user.username` before `user.firstName` as the display name.
 - All routes are public by default. Protected routes use `auth.protect()` inside `clerkMiddleware` in `proxy.ts`.
 - `/api/inngest` must remain public — Inngest calls it from outside.
+- `/api/action-items/[id]/done` must remain public — token-based, no Clerk needed.
 
 ---
 

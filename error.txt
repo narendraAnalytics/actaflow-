@@ -1,2 +1,5 @@
-Form elements must have labels: Element has no title attribute Element has no placeholder attributeMicrosoft Edge Toolsaxe/forms
-(property) JSX.IntrinsicElements.input: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>
+delete from "users"
+where
+  "id" = 'user_3CKzRbC5lHFT0uHwB9CsoLYvx5v'
+Error:
+update or delete on table "users" violates foreign key constraint "action_items_user_id_users_id_fk" on table "action_items"
