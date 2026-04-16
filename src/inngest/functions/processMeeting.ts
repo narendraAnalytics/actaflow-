@@ -2,7 +2,7 @@ import { inngest } from '@/inngest/client';
 import { db } from '@/db';
 import { meetings, attendees, actionItems, emailLogs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { extractMeetingData } from '@/lib/gemini';
+import { extractMeetingData, type GeminiAttendee } from '@/lib/gemini';
 import { sendActionItemEmail } from '@/lib/email';
 
 export const processMeeting = inngest.createFunction(
@@ -55,15 +55,19 @@ export const processMeeting = inngest.createFunction(
           })
           .where(eq(meetings.id, meetingId));
 
-        // Insert attendees — match emails positionally or by fuzzy name
+        // Insert attendees — match emails positionally, then transcript-extracted, then fuzzy
         const insertedAttendees = [];
+        // Build a name→resolvedEmail map so action item owners can reuse the same resolution
+        const resolvedEmailMap = new Map<string, string>();
+
         for (let i = 0; i < extraction.attendees.length; i++) {
-          const name = extraction.attendees[i];
-          const email = resolveEmail(name, i, attendeeEmails);
+          const attendee = extraction.attendees[i];
+          const email = resolveEmail(attendee, i, attendeeEmails);
+          if (email) resolvedEmailMap.set(attendee.name.toLowerCase().trim(), email);
 
           const [inserted] = await db
             .insert(attendees)
-            .values({ meetingId, name, email: email ?? null })
+            .values({ meetingId, name: attendee.name, email: email ?? null })
             .returning();
 
           insertedAttendees.push(inserted);
@@ -71,7 +75,10 @@ export const processMeeting = inngest.createFunction(
 
         // Insert action items
         for (const item of extraction.action_items) {
-          const ownerEmail = resolveEmailByName(item.owner, extraction.attendees, attendeeEmails);
+          // Check resolved attendee map first (covers transcript-extracted emails)
+          const ownerEmail =
+            resolvedEmailMap.get(item.owner.toLowerCase().trim()) ??
+            resolveEmailByName(item.owner, attendeeEmails);
 
           await db.insert(actionItems).values({
             meetingId,
@@ -170,25 +177,27 @@ export const processMeeting = inngest.createFunction(
 /* ── Helpers ── */
 
 /**
- * Positional match: Gemini attendee[i] → user-provided email[i].
- * Falls back to fuzzy name→email-local-part comparison.
+ * 3-tier email resolution for an attendee:
+ * 1. Form field email at same position (explicit user override — highest priority)
+ * 2. Email extracted from transcript by Gemini
+ * 3. Fuzzy first-name → email local-part match against form field emails
  */
 function resolveEmail(
-  name: string,
+  attendee: GeminiAttendee,
   index: number,
   emailList: string[]
 ): string | undefined {
   if (emailList[index]) return emailList[index];
-  return resolveEmailByName(name, [], emailList);
+  if (attendee.email) return attendee.email;
+  return resolveEmailByName(attendee.name, emailList);
 }
 
 /**
- * Match an owner name against provided emails by comparing first name
+ * Match an owner name against form-field emails by comparing first name
  * to the local-part of each email address.
  */
 function resolveEmailByName(
   ownerName: string,
-  _allNames: string[],
   emailList: string[]
 ): string | undefined {
   if (!emailList.length) return undefined;

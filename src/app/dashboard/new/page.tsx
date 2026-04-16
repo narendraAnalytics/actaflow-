@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -102,13 +102,31 @@ export default function NewMeetingPage() {
   const router = useRouter();
   const [transcript, setTranscript] = useState('');
   const [attendeeEmails, setAttendeeEmails] = useState('');
+  const [autoDetectedCount, setAutoDetectedCount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  // Track whether the email field was manually edited by the user
+  const userEditedEmails = useRef(false);
+
+  // Auto-detect emails from transcript as user types/pastes
+  useEffect(() => {
+    if (userEditedEmails.current) return; // don't overwrite manual input
+    const EMAIL_RE = /[\w.+\-]+@[\w\-]+\.[\w.]+/g;
+    const found = Array.from(new Set(transcript.match(EMAIL_RE) ?? []));
+    setAutoDetectedCount(found.length);
+    setAttendeeEmails(found.join(', '));
+  }, [transcript]);
+
+  function handleEmailChange(value: string) {
+    userEditedEmails.current = true;
+    setAutoDetectedCount(0);
+    setAttendeeEmails(value);
+  }
 
   function loadSample() {
+    userEditedEmails.current = false; // allow auto-detection to run on sample
     setTranscript(SAMPLE_TRANSCRIPT);
-    setAttendeeEmails(SAMPLE_EMAILS);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -252,21 +270,28 @@ export default function NewMeetingPage() {
           >
             <Users size={15} style={{ color: 'oklch(0.52 0.28 300)' }} />
             Attendee Emails
-            <span
-              className="text-xs font-normal px-1.5 py-0.5 rounded-md"
-              style={{ background: 'oklch(0.945 0.012 285)', color: 'oklch(0.50 0.06 285)' }}
-            >
-              Optional
-            </span>
+
+            {autoDetectedCount > 0 && (
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{
+                  background: 'oklch(0.55 0.25 285 / 0.1)',
+                  color: 'oklch(0.48 0.26 295)',
+                  border: '1px solid oklch(0.55 0.25 285 / 0.2)',
+                }}
+              >
+                ✓ {autoDetectedCount} auto-detected
+              </span>
+            )}
           </label>
           <p className="text-xs mb-3" style={{ color: 'oklch(0.50 0.06 285)' }}>
-            Action items will be emailed to each person. Comma-separated.
+            Emails are auto-detected from your transcript. Add here to override or supplement. Comma-separated.
           </p>
           <input
             id="emails"
             type="text"
             value={attendeeEmails}
-            onChange={(e) => setAttendeeEmails(e.target.value)}
+            onChange={(e) => handleEmailChange(e.target.value)}
             placeholder="alice@company.com, bob@company.com, carol@company.com"
             className="w-full rounded-lg px-4 py-2.5 text-sm outline-none transition-all duration-150"
             style={{

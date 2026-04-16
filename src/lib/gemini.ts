@@ -15,7 +15,9 @@ JSON SCHEMA TO FOLLOW EXACTLY:
   "duration_mins": number_or_null,
   "language": "en | hi | es | fr | de | pt",
   "summary": "3-5 sentence plain-English recap of the meeting",
-  "attendees": ["name1", "name2"],
+  "attendees": [
+    { "name": "string - attendee name as spoken", "email": "email@domain.com or null if not found" }
+  ],
   "decisions": ["decision1", "decision2"],
   "blockers": ["blocker1"],
   "action_items": [
@@ -34,6 +36,11 @@ PRIORITY RULES:
 - medium: deadline within 1-2 weeks, or important to project progress
 - low: no deadline mentioned, or nice-to-have / exploratory task
 
+ATTENDEE EMAIL EXTRACTION:
+- For each attendee, look for their email anywhere in the transcript — in parentheses next to their name (e.g. "Alice Smith (alice@co.com)"), after a colon, in a speaker label, or in the attendee list header.
+- If found, include it in the "email" field. If not found, set "email" to null.
+- Never fabricate emails. Only extract what is explicitly present in the transcript.
+
 EXTRACTION RULES:
 - Extract ALL action items - do not summarise or combine separate tasks into one.
 - If ownership is unclear, use "Team" as the owner name.
@@ -49,18 +56,24 @@ const ActionItemSchema = z.object({
   context: z.string(),
 });
 
+const GeminiAttendeeSchema = z.object({
+  name: z.string(),
+  email: z.string().nullable(),
+});
+
 const GeminiResponseSchema = z.object({
   title: z.string(),
   meeting_date: z.string().nullable(),
   duration_mins: z.number().nullable(),
   language: z.enum(['en', 'hi', 'es', 'fr', 'de', 'pt']).default('en'),
   summary: z.string(),
-  attendees: z.array(z.string()),
+  attendees: z.array(GeminiAttendeeSchema),
   decisions: z.array(z.string()),
   blockers: z.array(z.string()),
   action_items: z.array(ActionItemSchema),
 });
 
+export type GeminiAttendee = z.infer<typeof GeminiAttendeeSchema>;
 export type GeminiExtractionResult = z.infer<typeof GeminiResponseSchema>;
 
 export async function extractMeetingData(
