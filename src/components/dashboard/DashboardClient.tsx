@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { motion, useMotionValue, useSpring, useTransform, animate } from 'framer-motion';
+import { motion, animate } from 'framer-motion';
 import { useEffect, useRef } from 'react';
 import {
   Plus,
@@ -9,14 +9,16 @@ import {
   Users,
   CheckSquare,
   Clock,
-  ChevronRight,
   FileText,
   Zap,
   TrendingUp,
   Sparkles,
   ArrowUpRight,
+  ChevronRight,
+  Infinity as InfinityIcon,
 } from 'lucide-react';
 import type { Meeting } from '@/db/schema';
+import type { PlanInfo } from '@/lib/plans';
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -27,6 +29,7 @@ interface DashboardClientProps {
     totalActionItems: number;
     doneItems: number;
   };
+  planInfo: PlanInfo;
 }
 
 /* ── Animated counter ── */
@@ -99,7 +102,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-/* ── Stat card ── */
+/* ── Stat card config ── */
 const statConfig = [
   {
     label: 'Total Meetings',
@@ -124,7 +127,113 @@ const statConfig = [
   },
 ];
 
-export default function DashboardClient({ meetings, stats }: DashboardClientProps) {
+/* ── Plan Usage Banner ── */
+function PlanUsageBanner({ planInfo }: { planInfo: PlanInfo }) {
+  const { plan, meetingsThisMonth, meetingLimit, isAtLimit, isUnlimited } = planInfo;
+  const pct = isUnlimited ? 100 : Math.min(100, Math.round((meetingsThisMonth / meetingLimit) * 100));
+  const planLabel = plan === 'free' ? 'Free' : plan === 'plus' ? 'Plus' : 'Pro';
+
+  // Pro: minimal badge
+  if (isUnlimited) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.05, ease: EASE }}
+        className="mb-8 inline-flex items-center gap-2 px-4 py-2 rounded-full"
+        style={{
+          background: 'oklch(0.55 0.25 285 / 0.08)',
+          border: '1px solid oklch(0.55 0.25 285 / 0.18)',
+        }}
+      >
+        <InfinityIcon size={14} style={{ color: 'oklch(0.52 0.28 300)' }} />
+        <span className="text-xs font-semibold" style={{ color: 'oklch(0.42 0.22 290)' }}>
+          Pro · Unlimited meetings
+        </span>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.05, ease: EASE }}
+      className="mb-8 rounded-2xl p-5"
+      style={
+        isAtLimit
+          ? {
+              background: 'oklch(0.80 0.17 75 / 0.10)',
+              border: '1px solid oklch(0.80 0.17 75 / 0.28)',
+            }
+          : {
+              background: 'oklch(1 0.004 90)',
+              border: '1px solid oklch(0.88 0.02 285)',
+              boxShadow: '0 2px 12px oklch(0.55 0.25 285 / 0.06)',
+            }
+      }
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* Left: label + progress */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span
+              className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={
+                isAtLimit
+                  ? { background: 'oklch(0.80 0.17 75 / 0.20)', color: 'oklch(0.40 0.14 75)' }
+                  : { background: 'oklch(0.55 0.25 285 / 0.1)', color: 'oklch(0.48 0.26 295)' }
+              }
+            >
+              {planLabel}
+            </span>
+            <span className="text-xs font-semibold" style={{ color: isAtLimit ? 'oklch(0.38 0.12 65)' : 'oklch(0.30 0.06 285)' }}>
+              {isAtLimit
+                ? `${meetingsThisMonth}/${meetingLimit} meetings this month — upgrade to continue`
+                : `${meetingsThisMonth}/${meetingLimit} meetings used this month`}
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          <div
+            className="h-1.5 rounded-full overflow-hidden"
+            style={{ background: 'oklch(0.88 0.02 285)', maxWidth: '280px' }}
+          >
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 0.8, delay: 0.2, ease: EASE }}
+              className="h-full rounded-full"
+              style={{
+                background: isAtLimit
+                  ? 'linear-gradient(90deg, oklch(0.75 0.17 75) 0%, oklch(0.65 0.20 60) 100%)'
+                  : 'linear-gradient(90deg, oklch(0.52 0.28 300) 0%, oklch(0.62 0.20 280) 100%)',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Right: upgrade CTA */}
+        {(plan === 'free' || plan === 'plus') && (
+          <Link
+            href="/pricing"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all duration-150 hover:scale-[1.03] shrink-0"
+            style={{
+              background: 'oklch(0.55 0.25 285)',
+              color: 'oklch(0.985 0.006 90)',
+              boxShadow: '0 2px 12px oklch(0.55 0.25 285 / 0.25)',
+            }}
+          >
+            {plan === 'free' ? 'Upgrade to Plus' : 'Upgrade to Pro'}
+            <ChevronRight size={12} />
+          </Link>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+export default function DashboardClient({ meetings, stats, planInfo }: DashboardClientProps) {
   const completionRate =
     stats.totalActionItems > 0
       ? Math.round((stats.doneItems / stats.totalActionItems) * 100)
@@ -141,7 +250,7 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: EASE }}
-        className="flex items-start justify-between mb-10"
+        className="flex items-start justify-between mb-8"
       >
         <div>
           <div className="flex items-center gap-2 mb-2">
@@ -195,6 +304,9 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
         </Link>
       </motion.div>
 
+      {/* ── Plan usage banner ── */}
+      <PlanUsageBanner planInfo={planInfo} />
+
       {/* ── Stat cards ── */}
       {stats.totalMeetings > 0 && (
         <div className="grid grid-cols-3 gap-5 mb-10">
@@ -207,7 +319,7 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
               className="relative overflow-hidden rounded-2xl p-5"
               style={{ background: gradient, boxShadow: glow }}
             >
-              {/* Decorative circle */}
+              {/* Decorative circles */}
               <div
                 className="absolute -top-6 -right-6 w-24 h-24 rounded-full"
                 style={{ background: 'oklch(0.985 0.006 90 / 0.08)' }}
@@ -248,7 +360,7 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.15, ease: EASE }}
-          className="flex flex-col items-center justify-center py-28 text-center"
+          className="flex flex-col items-center justify-center py-24 text-center"
         >
           <motion.div
             animate={{ y: [0, -6, 0] }}
@@ -302,7 +414,6 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
       {/* ── Meeting list ── */}
       {meetings.length > 0 && (
         <div>
-          {/* Section header */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -363,7 +474,6 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
                     el.style.transform = 'translateY(0)';
                   }}
                 >
-                  {/* Left accent bar on hover */}
                   <div
                     className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                     style={{
@@ -373,7 +483,6 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
                   />
 
                   <div className="flex items-center gap-4 flex-1 min-w-0 pl-1">
-                    {/* Icon */}
                     <div
                       className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 group-hover:scale-105"
                       style={{
@@ -385,7 +494,6 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
                       <FileText size={18} style={{ color: 'oklch(0.52 0.28 300)' }} />
                     </div>
 
-                    {/* Text */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
                         <h3
@@ -428,9 +536,7 @@ export default function DashboardClient({ meetings, stats }: DashboardClientProp
 
                   <div
                     className="shrink-0 ml-3 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 group-hover:translate-x-0 -translate-x-1"
-                    style={{
-                      background: 'oklch(0.52 0.28 300 / 0.1)',
-                    }}
+                    style={{ background: 'oklch(0.52 0.28 300 / 0.1)' }}
                   >
                     <ArrowUpRight size={14} style={{ color: 'oklch(0.52 0.28 300)' }} />
                   </div>

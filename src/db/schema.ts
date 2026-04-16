@@ -17,6 +17,7 @@ export const users = pgTable('users', {
   fullName: varchar('full_name', { length: 200 }),
   plan: varchar('plan', { length: 20 }).notNull().default('free'),
   meetingsUsed: integer('meetings_used').notNull().default(0),
+  reminderMonthSentAt: timestamp('reminder_month_sent_at', { withTimezone: true }),
   timezone: varchar('timezone', { length: 60 }).notNull().default('Asia/Kolkata'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

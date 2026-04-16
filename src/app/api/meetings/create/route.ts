@@ -3,8 +3,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/db';
 import { meetings } from '@/db/schema';
+import { eq, and, gte, sql } from 'drizzle-orm';
 import { inngest } from '@/inngest/client';
 import { getOrCreateUser } from '@/lib/auth';
+import { PLAN_LIMITS, getMonthStart, type PlanKey } from '@/lib/plans';
 
 const CreateMeetingSchema = z.object({
   transcript: z.string().min(50, 'Transcript must be at least 50 characters'),
@@ -35,8 +37,31 @@ export async function POST(req: Request) {
 
   const { transcript, attendeeEmails, title } = parsed.data;
 
-  // Ensure user row exists in DB
-  await getOrCreateUser();
+  // Sync plan from Clerk + get user
+  const user = await getOrCreateUser();
+  const limits = PLAN_LIMITS[user.plan as PlanKey];
+
+  // Enforce monthly meeting limit
+  if (limits.meetingsPerMonth !== Infinity) {
+    const monthStart = getMonthStart();
+    const [row] = await db
+      .select({ count: sql<number>`cast(count(*) as int)` })
+      .from(meetings)
+      .where(and(eq(meetings.userId, user.id), gte(meetings.createdAt, monthStart)));
+    if ((row?.count ?? 0) >= limits.meetingsPerMonth) {
+      return NextResponse.json({ error: 'MEETING_LIMIT_REACHED' }, { status: 403 });
+    }
+  }
+
+  // Parse and enforce attendee email limit
+  const emailList = attendeeEmails
+    .split(',')
+    .map((e) => e.trim())
+    .filter((e) => e.includes('@'));
+
+  if (limits.maxAttendeeEmails !== Infinity && emailList.length > limits.maxAttendeeEmails) {
+    return NextResponse.json({ error: 'ATTENDEE_LIMIT_EXCEEDED' }, { status: 403 });
+  }
 
   // Insert meeting record
   const [meeting] = await db
@@ -49,12 +74,6 @@ export async function POST(req: Request) {
       status: 'processing',
     })
     .returning();
-
-  // Parse comma-separated emails
-  const emailList = attendeeEmails
-    .split(',')
-    .map((e) => e.trim())
-    .filter((e) => e.includes('@'));
 
   // Fire Inngest background job
   await inngest.send({

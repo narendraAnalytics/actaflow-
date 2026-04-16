@@ -1,8 +1,9 @@
 import { inngest } from '@/inngest/client';
 import { db } from '@/db';
-import { actionItems, meetings } from '@/db/schema';
+import { actionItems, meetings, users } from '@/db/schema';
 import { eq, and, isNull, isNotNull, lte, or } from 'drizzle-orm';
 import { sendReminderEmail } from '@/lib/email';
+import { isThisMonth } from '@/lib/plans';
 
 type ReminderItem = {
   id: string;
@@ -14,6 +15,9 @@ type ReminderItem = {
   ownerName: string;
   meetingId: string;
   meetingTitle: string | null;
+  userId: string;
+  userPlan: string;
+  userReminderMonthSentAt: Date | null;
 };
 
 export const sendReminders = inngest.createFunction(
@@ -24,7 +28,7 @@ export const sendReminders = inngest.createFunction(
     triggers: [{ cron: '30 3 * * *' }], // 9:00 AM IST (UTC+5:30)
   },
   async ({ step }: { step: any }) => {
-    // Step 1: Fetch all open items that need a reminder
+    // Step 1: Fetch all open items that need a reminder (join users for plan data)
     const dueItems: ReminderItem[] = await step.run('fetch-due-items', async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -46,9 +50,13 @@ export const sendReminders = inngest.createFunction(
           ownerName: actionItems.ownerName,
           meetingId: actionItems.meetingId,
           meetingTitle: meetings.title,
+          userId: actionItems.userId,
+          userPlan: users.plan,
+          userReminderMonthSentAt: users.reminderMonthSentAt,
         })
         .from(actionItems)
         .innerJoin(meetings, eq(actionItems.meetingId, meetings.id))
+        .innerJoin(users, eq(actionItems.userId, users.id))
         .where(
           and(
             eq(actionItems.status, 'open'),
@@ -72,22 +80,45 @@ export const sendReminders = inngest.createFunction(
 
     if (dueItems.length === 0) return { sent: 0 };
 
-    // Step 2: Group by ownerEmail and send one email per attendee
+    // Step 2: Apply free-plan monthly cap, then send one email per attendee
     await step.run('send-reminder-emails', async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString().slice(0, 10);
 
-      // Group items by ownerEmail
-      const grouped = new Map<string, ReminderItem[]>();
+      // Group by userId to apply per-user free-plan monthly cap
+      const byUser = new Map<string, ReminderItem[]>();
       for (const item of dueItems) {
+        const list = byUser.get(item.userId) ?? [];
+        list.push(item);
+        byUser.set(item.userId, list);
+      }
+
+      // Collect items allowed to send (free users already sent this month are skipped)
+      const allowedItems: ReminderItem[] = [];
+      for (const [, items] of byUser) {
+        const { userPlan, userReminderMonthSentAt } = items[0];
+        if (userPlan === 'free') {
+          // Free plan: only one reminder batch per calendar month
+          if (userReminderMonthSentAt && isThisMonth(userReminderMonthSentAt)) {
+            continue; // already sent this month — skip all items for this user
+          }
+        }
+        allowedItems.push(...items);
+      }
+
+      if (allowedItems.length === 0) return;
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+
+      // Group allowed items by ownerEmail and send
+      const grouped = new Map<string, ReminderItem[]>();
+      for (const item of allowedItems) {
         if (!item.ownerEmail) continue;
         const existing = grouped.get(item.ownerEmail) ?? [];
         existing.push(item);
         grouped.set(item.ownerEmail, existing);
       }
-
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
       for (const [email, items] of grouped) {
         const hasOverdue = items.some(
@@ -119,6 +150,14 @@ export const sendReminders = inngest.createFunction(
               .update(actionItems)
               .set({ reminderSentAt: new Date() })
               .where(eq(actionItems.id, item.id));
+          }
+
+          // For free-plan users: stamp reminderMonthSentAt so they don't get another this month
+          if (items[0].userPlan === 'free') {
+            await db
+              .update(users)
+              .set({ reminderMonthSentAt: new Date() })
+              .where(eq(users.id, items[0].userId));
           }
         } catch (err) {
           // Log and continue — don't fail the whole job for one bad email

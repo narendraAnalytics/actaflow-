@@ -2,9 +2,11 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { meetings } from '@/db/schema';
+import { eq, and, gte, sql } from 'drizzle-orm';
 import { inngest } from '@/inngest/client';
 import { getOrCreateUser } from '@/lib/auth';
 import { uploadVideoToCloudinary } from '@/lib/cloudinary';
+import { PLAN_LIMITS, getMonthStart, type PlanKey } from '@/lib/plans';
 import { nanoid } from 'nanoid';
 
 export const maxDuration = 60;
@@ -47,12 +49,31 @@ export async function POST(req: Request) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  await getOrCreateUser();
+  // Sync plan from Clerk + get user — fail fast before expensive Cloudinary upload
+  const user = await getOrCreateUser();
+  const limits = PLAN_LIMITS[user.plan as PlanKey];
 
+  // Enforce monthly meeting limit
+  if (limits.meetingsPerMonth !== Infinity) {
+    const monthStart = getMonthStart();
+    const [row] = await db
+      .select({ count: sql<number>`cast(count(*) as int)` })
+      .from(meetings)
+      .where(and(eq(meetings.userId, user.id), gte(meetings.createdAt, monthStart)));
+    if ((row?.count ?? 0) >= limits.meetingsPerMonth) {
+      return NextResponse.json({ error: 'MEETING_LIMIT_REACHED' }, { status: 403 });
+    }
+  }
+
+  // Parse and enforce attendee email limit
   const emailList = attendeeEmailsRaw
     .split(',')
     .map((e) => e.trim())
     .filter((e) => e.includes('@'));
+
+  if (limits.maxAttendeeEmails !== Infinity && emailList.length > limits.maxAttendeeEmails) {
+    return NextResponse.json({ error: 'ATTENDEE_LIMIT_EXCEEDED' }, { status: 403 });
+  }
 
   // Upload to Cloudinary for storage / playback
   const cloudinaryUrl = await uploadVideoToCloudinary(buffer, `meeting-${nanoid(12)}`);
