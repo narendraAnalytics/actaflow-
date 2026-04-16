@@ -2,7 +2,7 @@ import { inngest } from '@/inngest/client';
 import { db } from '@/db';
 import { meetings, attendees, actionItems, emailLogs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { extractMeetingData, type GeminiAttendee } from '@/lib/gemini';
+import { extractMeetingData, transcribeVideo, type GeminiAttendee } from '@/lib/gemini';
 import { sendActionItemEmail } from '@/lib/email';
 
 export const processMeeting = inngest.createFunction(
@@ -12,7 +12,7 @@ export const processMeeting = inngest.createFunction(
     retries: 3,
     triggers: [{ event: 'actaflow/meeting.uploaded' }],
   },
-  async ({ event, step }: { event: { data: { meetingId: string; userId: string; attendeeEmails: string[] } }; step: any }) => {
+  async ({ event, step }: { event: { data: { meetingId: string; userId: string; attendeeEmails: string[]; mimeType?: string } }; step: any }) => {
     const { meetingId, userId, attendeeEmails } = event.data;
 
     try {
@@ -24,7 +24,7 @@ export const processMeeting = inngest.createFunction(
           .where(eq(meetings.id, meetingId));
       });
 
-      // Step 2: Call Gemini
+      // Step 2: Transcribe (if audio/video upload) then call Gemini
       const extraction = await step.run('call-gemini', async () => {
         const [meeting] = await db
           .select()
@@ -32,11 +32,33 @@ export const processMeeting = inngest.createFunction(
           .where(eq(meetings.id, meetingId))
           .limit(1);
 
-        if (!meeting?.rawTranscript) {
+        if (!meeting) throw new Error('Meeting not found: ' + meetingId);
+
+        let transcript = meeting.rawTranscript;
+
+        // For upload-sourced meetings, transcribe from Cloudinary URL first
+        if (!transcript && meeting.audioUrl) {
+          const response = await fetch(meeting.audioUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch audio from Cloudinary: ${response.status}`);
+          }
+          const buffer = Buffer.from(await response.arrayBuffer());
+          const mimeType = event.data.mimeType ?? 'video/mp4';
+
+          transcript = await transcribeVideo(buffer, mimeType, `meeting-${meetingId}`);
+
+          // Persist immediately — idempotent on retry
+          await db
+            .update(meetings)
+            .set({ rawTranscript: transcript })
+            .where(eq(meetings.id, meetingId));
+        }
+
+        if (!transcript) {
           throw new Error('No transcript found for meeting: ' + meetingId);
         }
 
-        return extractMeetingData(meeting.rawTranscript);
+        return extractMeetingData(transcript);
       });
 
       // Step 3: Save extracted data

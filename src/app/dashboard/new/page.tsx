@@ -98,20 +98,38 @@ const STEPS = [
   { label: 'Sending emails…', icon: Users },
 ];
 
+const UPLOAD_STEPS = [
+  { label: 'Uploading file to storage…', icon: Upload },
+  { label: 'Transcribing audio with Gemini…', icon: Mic },
+  { label: 'Analysing & sending emails…', icon: Sparkles },
+];
+
 export default function NewMeetingPage() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'paste' | 'upload'>('paste');
+
+  // Paste-mode state
   const [transcript, setTranscript] = useState('');
   const [attendeeEmails, setAttendeeEmails] = useState('');
   const [autoDetectedCount, setAutoDetectedCount] = useState(0);
+  const userEditedEmails = useRef(false);
+
+  // Upload-mode state
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractedTranscript, setExtractedTranscript] = useState<string | null>(null);
+  const [uploadEmailCount, setUploadEmailCount] = useState(0);
+
+  // Shared submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  // Track whether the email field was manually edited by the user
-  const userEditedEmails = useRef(false);
 
   // Auto-detect emails from transcript as user types/pastes
   useEffect(() => {
-    if (userEditedEmails.current) return; // don't overwrite manual input
+    if (userEditedEmails.current) return;
     const EMAIL_RE = /[\w.+\-]+@[\w\-]+\.[\w.]+/g;
     const found = Array.from(new Set(transcript.match(EMAIL_RE) ?? []));
     setAutoDetectedCount(found.length);
@@ -125,7 +143,7 @@ export default function NewMeetingPage() {
   }
 
   function loadSample() {
-    userEditedEmails.current = false; // allow auto-detection to run on sample
+    userEditedEmails.current = false;
     setTranscript(SAMPLE_TRANSCRIPT);
   }
 
@@ -135,7 +153,6 @@ export default function NewMeetingPage() {
     setIsSubmitting(true);
     setStepIndex(0);
 
-    // Animate steps
     const interval = setInterval(() => {
       setStepIndex((prev) => Math.min(prev + 1, STEPS.length - 1));
     }, 800);
@@ -163,6 +180,81 @@ export default function NewMeetingPage() {
     }
   }
 
+  async function extractEmailsFromAudio() {
+    if (!uploadFile) return;
+    setIsExtracting(true);
+    setError(null);
+    setExtractedTranscript(null);
+    setUploadEmailCount(0);
+    userEditedEmails.current = false;
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+
+      const res = await fetch('/api/meetings/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? 'Transcription failed');
+      }
+
+      const data = (await res.json()) as { transcript: string; emails: string[] };
+      setExtractedTranscript(data.transcript);
+      setUploadEmailCount(data.emails.length);
+      setAttendeeEmails(data.emails.join(', '));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Transcription failed');
+    } finally {
+      setIsExtracting(false);
+    }
+  }
+
+  async function handleUploadSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!uploadFile) return;
+    setError(null);
+    setIsSubmitting(true);
+    setStepIndex(0);
+
+    const interval = setInterval(() => {
+      setStepIndex((prev) => Math.min(prev + 1, UPLOAD_STEPS.length - 1));
+    }, 3000);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('attendeeEmails', attendeeEmails);
+      if (extractedTranscript) {
+        formData.append('transcript', extractedTranscript);
+      }
+
+      const res = await fetch('/api/meetings/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      clearInterval(interval);
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? 'Upload failed');
+      }
+
+      const data = (await res.json()) as { meetingId: string };
+      router.push(`/dashboard/${data.meetingId}`);
+    } catch (err) {
+      clearInterval(interval);
+      setError(err instanceof Error ? err.message : 'Upload failed');
+      setIsSubmitting(false);
+    }
+  }
+
+  const currentSteps = activeTab === 'upload' ? UPLOAD_STEPS : STEPS;
+
   return (
     <div className="p-8 max-w-3xl">
       {/* Header */}
@@ -179,77 +271,281 @@ export default function NewMeetingPage() {
           New Meeting
         </h1>
         <p className="text-sm" style={{ color: 'oklch(0.50 0.06 285)' }}>
-          Paste a transcript and let ActaFlow extract every action item automatically.
+          Paste a transcript or upload a recording — ActaFlow extracts every action item automatically.
         </p>
       </motion.div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Transcript card */}
+      <form
+        onSubmit={activeTab === 'upload' ? handleUploadSubmit : handleSubmit}
+        className="space-y-5"
+      >
+        {/* Tab toggle */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.08, ease: EASE }}
-          className="rounded-xl p-6"
+          transition={{ duration: 0.45, delay: 0.05, ease: EASE }}
+          className="flex rounded-xl p-1"
           style={{
-            background: 'oklch(1 0.004 90)',
+            background: 'oklch(0.945 0.012 285)',
             border: '1px solid oklch(0.88 0.02 285)',
-            boxShadow: '0 2px 12px oklch(0.55 0.25 285 / 0.06)',
           }}
         >
-          <div className="flex items-center justify-between mb-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab('paste')}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200"
+            style={
+              activeTab === 'paste'
+                ? {
+                    background: 'oklch(1 0.004 90)',
+                    color: 'oklch(0.22 0.04 285)',
+                    boxShadow: '0 1px 4px oklch(0.55 0.25 285 / 0.1)',
+                  }
+                : { color: 'oklch(0.50 0.06 285)' }
+            }
+          >
+            <FileText size={14} />
+            Paste Transcript
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('upload')}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200"
+            style={
+              activeTab === 'upload'
+                ? {
+                    background: 'oklch(1 0.004 90)',
+                    color: 'oklch(0.22 0.04 285)',
+                    boxShadow: '0 1px 4px oklch(0.55 0.25 285 / 0.1)',
+                  }
+                : { color: 'oklch(0.50 0.06 285)' }
+            }
+          >
+            <Mic size={14} />
+            Upload Audio / Video
+          </button>
+        </motion.div>
+
+        {/* Transcript card — paste mode only */}
+        {activeTab === 'paste' && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.08, ease: EASE }}
+            className="rounded-xl p-6"
+            style={{
+              background: 'oklch(1 0.004 90)',
+              border: '1px solid oklch(0.88 0.02 285)',
+              boxShadow: '0 2px 12px oklch(0.55 0.25 285 / 0.06)',
+            }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <label
+                htmlFor="transcript"
+                className="text-sm font-semibold flex items-center gap-2"
+                style={{ color: 'oklch(0.22 0.04 285)' }}
+              >
+                <FileText size={15} style={{ color: 'oklch(0.52 0.28 300)' }} />
+                Meeting Transcript
+              </label>
+              <button
+                type="button"
+                onClick={loadSample}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 hover:scale-[1.02]"
+                style={{
+                  background: 'oklch(0.80 0.17 75 / 0.15)',
+                  color: 'oklch(0.44 0.14 75)',
+                  border: '1px solid oklch(0.80 0.17 75 / 0.30)',
+                }}
+              >
+                <Sparkles size={11} />
+                Try Sample Transcript
+              </button>
+            </div>
+
+            <textarea
+              id="transcript"
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              placeholder="Paste your meeting transcript here…&#10;&#10;Supports Zoom, Google Meet, Teams, and any plain text format."
+              rows={16}
+              required
+              className="w-full resize-none rounded-lg px-4 py-3 text-sm outline-none transition-all duration-150 font-mono"
+              style={{
+                background: 'oklch(0.985 0.006 90)',
+                border: '1.5px solid oklch(0.88 0.02 285)',
+                color: 'oklch(0.22 0.04 285)',
+                lineHeight: '1.65',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = 'oklch(0.55 0.25 285 / 0.6)';
+                e.currentTarget.style.boxShadow = '0 0 0 3px oklch(0.55 0.25 285 / 0.08)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = 'oklch(0.88 0.02 285)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            />
+
+            {transcript.length > 0 && (
+              <p className="mt-2 text-xs" style={{ color: 'oklch(0.50 0.06 285)' }}>
+                {transcript.split(/\s+/).filter(Boolean).length} words
+              </p>
+            )}
+          </motion.div>
+        )}
+
+        {/* Upload zone — upload mode only */}
+        {activeTab === 'upload' && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.08, ease: EASE }}
+            className="rounded-xl p-6"
+            style={{
+              background: 'oklch(1 0.004 90)',
+              border: '1px solid oklch(0.88 0.02 285)',
+              boxShadow: '0 2px 12px oklch(0.55 0.25 285 / 0.06)',
+            }}
+          >
             <label
-              htmlFor="transcript"
-              className="text-sm font-semibold flex items-center gap-2"
+              className="text-sm font-semibold flex items-center gap-2 mb-3"
               style={{ color: 'oklch(0.22 0.04 285)' }}
             >
-              <FileText size={15} style={{ color: 'oklch(0.52 0.28 300)' }} />
-              Meeting Transcript
+              <Mic size={15} style={{ color: 'oklch(0.52 0.28 300)' }} />
+              Meeting Recording
             </label>
-            <button
-              type="button"
-              onClick={loadSample}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 hover:scale-[1.02]"
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*,audio/*"
+              aria-label="Upload meeting recording"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  setUploadFile(f);
+                  setExtractedTranscript(null);
+                  setUploadEmailCount(0);
+                  setAttendeeEmails('');
+                  userEditedEmails.current = false;
+                }
+              }}
+            />
+
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+                const dropped = e.dataTransfer.files[0];
+                if (dropped) {
+                  setUploadFile(dropped);
+                  setExtractedTranscript(null);
+                  setUploadEmailCount(0);
+                  setAttendeeEmails('');
+                  userEditedEmails.current = false;
+                }
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-xl p-10 cursor-pointer flex flex-col items-center gap-3 transition-all duration-200"
               style={{
-                background: 'oklch(0.80 0.17 75 / 0.15)',
-                color: 'oklch(0.44 0.14 75)',
-                border: '1px solid oklch(0.80 0.17 75 / 0.30)',
+                border: `2px dashed ${isDragOver ? 'oklch(0.52 0.28 300)' : 'oklch(0.82 0.04 285)'}`,
+                background: isDragOver
+                  ? 'oklch(0.55 0.25 285 / 0.04)'
+                  : 'oklch(0.985 0.006 90)',
               }}
             >
-              <Sparkles size={11} />
-              Try Sample Transcript
-            </button>
-          </div>
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200"
+                style={{
+                  background: isDragOver
+                    ? 'oklch(0.55 0.25 285 / 0.15)'
+                    : 'oklch(0.945 0.012 285)',
+                }}
+              >
+                <Upload
+                  size={22}
+                  style={{
+                    color: isDragOver ? 'oklch(0.52 0.28 300)' : 'oklch(0.50 0.06 285)',
+                  }}
+                />
+              </div>
 
-          <textarea
-            id="transcript"
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            placeholder="Paste your meeting transcript here…&#10;&#10;Supports Zoom, Google Meet, Teams, and any plain text format."
-            rows={16}
-            required
-            className="w-full resize-none rounded-lg px-4 py-3 text-sm outline-none transition-all duration-150 font-mono"
-            style={{
-              background: 'oklch(0.985 0.006 90)',
-              border: '1.5px solid oklch(0.88 0.02 285)',
-              color: 'oklch(0.22 0.04 285)',
-              lineHeight: '1.65',
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = 'oklch(0.55 0.25 285 / 0.6)';
-              e.currentTarget.style.boxShadow = '0 0 0 3px oklch(0.55 0.25 285 / 0.08)';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = 'oklch(0.88 0.02 285)';
-              e.currentTarget.style.boxShadow = 'none';
-            }}
-          />
+              {uploadFile ? (
+                <div className="text-center">
+                  <p className="text-sm font-semibold" style={{ color: 'oklch(0.22 0.04 285)' }}>
+                    {uploadFile.name}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'oklch(0.50 0.06 285)' }}>
+                    {(uploadFile.size / (1024 * 1024)).toFixed(1)} MB · Click to change
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <p className="text-sm font-semibold" style={{ color: 'oklch(0.40 0.06 285)' }}>
+                    Drop your recording here
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'oklch(0.60 0.06 285)' }}>
+                    or click to browse — .mp4, .mp3, .m4a, .wav · Max 100 MB
+                  </p>
+                </div>
+              )}
+            </div>
 
-          {transcript.length > 0 && (
-            <p className="mt-2 text-xs" style={{ color: 'oklch(0.50 0.06 285)' }}>
-              {transcript.split(/\s+/).filter(Boolean).length} words
-            </p>
-          )}
-        </motion.div>
+            {/* Extract emails button — shown once a file is selected */}
+            {uploadFile && !extractedTranscript && (
+              <button
+                type="button"
+                onClick={extractEmailsFromAudio}
+                disabled={isExtracting}
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.01] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
+                style={{
+                  background: 'oklch(0.80 0.17 75 / 0.18)',
+                  color: 'oklch(0.38 0.12 75)',
+                  border: '1px solid oklch(0.80 0.17 75 / 0.35)',
+                }}
+              >
+                {isExtracting ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Transcribing &amp; detecting emails…
+                  </>
+                ) : (
+                  <>
+                    <Mic size={14} />
+                    Extract Emails from Recording
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Confirmed state — emails detected */}
+            {extractedTranscript && (
+              <div
+                className="mt-4 flex items-center gap-3 rounded-xl px-4 py-3"
+                style={{
+                  background: 'oklch(0.55 0.25 285 / 0.07)',
+                  border: '1px solid oklch(0.55 0.25 285 / 0.2)',
+                }}
+              >
+                <CheckCircle2 size={16} style={{ color: 'oklch(0.52 0.28 300)' }} className="shrink-0" />
+                <p className="text-sm" style={{ color: 'oklch(0.30 0.06 285)' }}>
+                  Transcript ready ·{' '}
+                  <span className="font-semibold">
+                    {uploadEmailCount} email{uploadEmailCount !== 1 ? 's' : ''} detected
+                  </span>
+                  {uploadEmailCount === 0 && ' — add emails below manually'}
+                </p>
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {/* Attendee emails card */}
         <motion.div
@@ -285,7 +581,9 @@ export default function NewMeetingPage() {
             )}
           </label>
           <p className="text-xs mb-3" style={{ color: 'oklch(0.50 0.06 285)' }}>
-            Emails are auto-detected from your transcript. Add here to override or supplement. Comma-separated.
+            {activeTab === 'paste'
+              ? 'Emails are auto-detected from your transcript. Add here to override or supplement. Comma-separated.'
+              : 'Add attendee emails to receive personalised action item emails. Comma-separated.'}
           </p>
           <input
             id="emails"
@@ -310,42 +608,6 @@ export default function NewMeetingPage() {
           />
         </motion.div>
 
-        {/* Audio upload — coming soon */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.20, ease: EASE }}
-          className="rounded-xl p-5 flex items-center gap-4 opacity-60"
-          style={{
-            background: 'oklch(0.975 0.008 285)',
-            border: '1.5px dashed oklch(0.82 0.04 285)',
-          }}
-        >
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: 'oklch(0.945 0.012 285)' }}
-          >
-            <Mic size={18} style={{ color: 'oklch(0.50 0.06 285)' }} />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-sm font-semibold" style={{ color: 'oklch(0.40 0.06 285)' }}>
-                Audio / Video Upload
-              </span>
-              <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: 'oklch(0.80 0.17 75 / 0.2)', color: 'oklch(0.44 0.14 75)' }}
-              >
-                Coming Soon
-              </span>
-            </div>
-            <p className="text-xs" style={{ color: 'oklch(0.60 0.06 285)' }}>
-              Upload .mp3, .mp4, .m4a, .wav — Gemini will transcribe and extract automatically.
-            </p>
-          </div>
-          <Upload size={16} style={{ color: 'oklch(0.60 0.06 285)' }} />
-        </motion.div>
-
         {/* Error */}
         <AnimatePresence>
           {error && (
@@ -359,7 +621,11 @@ export default function NewMeetingPage() {
                 border: '1px solid oklch(0.85 0.08 25)',
               }}
             >
-              <AlertCircle size={17} style={{ color: 'oklch(0.55 0.20 25)' }} className="mt-0.5 shrink-0" />
+              <AlertCircle
+                size={17}
+                style={{ color: 'oklch(0.55 0.20 25)' }}
+                className="mt-0.5 shrink-0"
+              />
               <p className="text-sm" style={{ color: 'oklch(0.40 0.15 25)' }}>
                 {error}
               </p>
@@ -382,13 +648,20 @@ export default function NewMeetingPage() {
               }}
             >
               <div className="flex items-center gap-3 mb-4">
-                <Loader2 size={18} className="animate-spin" style={{ color: 'oklch(0.52 0.28 300)' }} />
-                <span className="text-sm font-semibold" style={{ color: 'oklch(0.22 0.04 285)' }}>
+                <Loader2
+                  size={18}
+                  className="animate-spin"
+                  style={{ color: 'oklch(0.52 0.28 300)' }}
+                />
+                <span
+                  className="text-sm font-semibold"
+                  style={{ color: 'oklch(0.22 0.04 285)' }}
+                >
                   ActaFlow is working…
                 </span>
               </div>
               <div className="space-y-2">
-                {STEPS.map((step, i) => {
+                {currentSteps.map((step, i) => {
                   const StepIcon = step.icon;
                   const isDone = i < stepIndex;
                   const isActive = i === stepIndex;
@@ -439,7 +712,7 @@ export default function NewMeetingPage() {
           ) : (
             <button
               type="submit"
-              disabled={!transcript.trim()}
+              disabled={activeTab === 'upload' ? !uploadFile || !extractedTranscript : !transcript.trim()}
               className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 hover:scale-[1.01] hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               style={{
                 background: 'oklch(0.52 0.28 300)',
@@ -447,9 +720,19 @@ export default function NewMeetingPage() {
                 boxShadow: '0 4px 20px oklch(0.55 0.25 285 / 0.28)',
               }}
             >
-              <Sparkles size={16} />
-              Analyse Meeting
-              <ChevronRight size={16} />
+              {activeTab === 'upload' ? (
+                <>
+                  <Upload size={16} />
+                  Upload &amp; Analyse
+                  <ChevronRight size={16} />
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  Analyse Meeting
+                  <ChevronRight size={16} />
+                </>
+              )}
             </button>
           )}
         </motion.div>

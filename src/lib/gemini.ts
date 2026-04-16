@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleAIFileManager, FileState } from '@google/generative-ai/server';
 import { z } from 'zod';
 
 const SYSTEM_PROMPT = `You are ActaFlow, an expert meeting analyst. Your job is to extract structured information from meeting transcripts or recordings with precision and consistency.
@@ -108,4 +109,51 @@ export async function extractMeetingData(
   }
 
   return GeminiResponseSchema.parse(parsed);
+}
+
+/**
+ * Upload a media buffer to Gemini Files API, wait for ACTIVE state, then
+ * generate a verbatim transcript of all spoken dialogue.
+ */
+export async function transcribeVideo(
+  buffer: Buffer,
+  mimeType: string,
+  displayName: string
+): Promise<string> {
+  const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!);
+
+  // Upload the buffer to Gemini Files API
+  const uploadResult = await fileManager.uploadFile(
+    buffer as unknown as string,
+    { mimeType, displayName }
+  );
+
+  // Poll until ACTIVE (Gemini processes video asynchronously)
+  let file = uploadResult.file;
+  while (file.state === FileState.PROCESSING) {
+    await new Promise((r) => setTimeout(r, 3000));
+    file = await fileManager.getFile(file.name);
+  }
+
+  if (file.state === FileState.FAILED) {
+    throw new Error(`Gemini file processing failed: ${displayName}`);
+  }
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+
+  const result = await model.generateContent([
+    { fileData: { mimeType: file.mimeType, fileUri: file.uri } },
+    {
+      text: `This is a meeting recording. Provide a full transcript of all spoken dialogue. Preserve speaker identification where possible using format "Speaker Name: dialogue". Include all spoken content without summarising. Start directly with the transcript.`,
+    },
+  ]);
+
+  const transcript = result.response.text().trim();
+  if (!transcript) throw new Error('Gemini returned empty transcript');
+
+  // Clean up uploaded file to avoid quota accumulation
+  await fileManager.deleteFile(file.name).catch(() => {});
+
+  return transcript;
 }

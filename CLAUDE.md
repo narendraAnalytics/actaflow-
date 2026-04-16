@@ -89,7 +89,7 @@ import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 | Frontend | Next.js 16 · Tailwind CSS v4 · shadcn/ui |
 | Auth | Clerk (`@clerk/nextjs` v7) |
 | Database | Neon PostgreSQL · Drizzle ORM |
-| AI | Gemini 2.0 Flash (`gemini-2.0-flash-preview`) |
+| AI | Gemini (`gemini-3-flash-preview`) |
 | Background Jobs | Inngest |
 | Email | Resend · React Email |
 | File Storage | Cloudinary |
@@ -107,54 +107,80 @@ npx tsc --noEmit     # TypeScript type-check
 npm run db:push      # Push Drizzle schema to Neon (no migration files)
 npm run db:generate  # Generate migration files from schema
 npm run db:studio    # Open Drizzle Studio visual DB browser
-
-# Add when layers are built:
-# npm run inngest:dev → Inngest dev server (separate terminal)
-# npm run email:dev   → react-email preview server (separate terminal)
 ```
+
+Inngest and React Email have no dedicated dev scripts — Inngest runs via the `/api/inngest` route handler; use the Inngest Dev Server CLI separately (`npx inngest-cli@latest dev`) if needed.
 
 ---
 
 ## Architecture
 
 ### Current state
-Landing page + Clerk auth + Neon DB (Drizzle ORM) are live. AI and email layers are not yet wired.
+All layers are live: landing page, Clerk auth, Neon DB, dashboard, AI extraction (Gemini), background processing (Inngest), and per-attendee email (Resend).
 
 ```
 src/
-  proxy.ts              # Clerk middleware (Next.js 16 uses proxy.ts, not middleware.ts)
+  proxy.ts                        # Clerk middleware (Next.js 16 — NOT middleware.ts)
   app/
-    layout.tsx          # ClerkProvider wraps children inside <body>
-    globals.css         # Tailwind v4 @theme inline — all CSS vars live here, NOT tailwind.config
-    page.tsx            # Landing page — calls getOrCreateUser() on sign-in (lazy DB sync)
-    sign-in/
-      [[...sign-in]]/
-        page.tsx        # Centered <SignIn /> with ActaFlow brand header
-    sign-up/
-      [[...sign-up]]/
-        page.tsx        # Centered <SignUp /> — username field enabled in Clerk dashboard
+    layout.tsx                    # ClerkProvider wraps children inside <body>
+    globals.css                   # Tailwind v4 @theme inline — all CSS vars here, NOT tailwind.config
+    page.tsx                      # Landing page — calls getOrCreateUser() on sign-in
+    sign-in/[[...sign-in]]/       # Clerk <SignIn /> page
+    sign-up/[[...sign-up]]/       # Clerk <SignUp /> page
+    dashboard/
+      layout.tsx                  # DashboardSidebar + main content shell
+      page.tsx                    # Server component — fetches meetings + stats, renders DashboardClient
+      new/page.tsx                # New meeting form — transcript paste + attendee emails
+      [id]/page.tsx               # Meeting detail — action items, attendee list, email status
+    api/
+      inngest/route.ts            # Inngest webhook handler (must be public)
+      meetings/create/route.ts    # POST — validates transcript, creates meeting, fires Inngest event
+      meetings/route.ts           # GET — list meetings for user
+      meetings/[id]/route.ts      # GET — single meeting with attendees + action items
+      action-items/[id]/done/     # POST — one-click "mark done" via doneToken (no auth required)
   components/
-    Navbar.tsx          # Fixed navbar: logo center, nav links left, UserButton right (signed-in)
-    HeroSection.tsx     # Full-viewport hero with animated counter, welcome banner (signed-in)
-    ui/                 # shadcn/ui primitives (lucide icons)
+    Navbar.tsx                    # Fixed navbar
+    HeroSection.tsx               # Landing hero with animated counter
+    dashboard/
+      DashboardClient.tsx         # Animated stats cards + meeting list (client component)
+      DashboardSidebar.tsx        # Sidebar nav with UserButton
+      MeetingDetailClient.tsx     # Meeting detail view (client component)
+    ui/                           # shadcn/ui primitives
   db/
-    schema.ts           # Drizzle schema — 6 tables: users, meetings, attendees, action_items, email_logs, contacts
-    index.ts            # Neon HTTP db client — import { db } from '@/db'
+    schema.ts                     # Drizzle schema — 6 tables (see below)
+    index.ts                      # Neon HTTP db client — import { db } from '@/db'
+  inngest/
+    client.ts                     # Inngest client instance
+    functions/processMeeting.ts   # Full pipeline: Gemini → DB → Resend emails
+  emails/
+    ActionItemEmail.tsx           # React Email template — per-attendee personalised email
   lib/
-    utils.ts            # cn() helper (clsx + tailwind-merge)
-    auth.ts             # getOrCreateUser() — lazy Clerk→Neon user sync, no webhook needed
-drizzle.config.ts       # Drizzle Kit config — schema: src/db/schema.ts, dialect: postgresql
+    auth.ts                       # getOrCreateUser() — lazy Clerk→Neon sync
+    gemini.ts                     # extractMeetingData() — returns GeminiExtractionResult
+    email.ts                      # sendActionItemEmail() — wraps Resend
+    utils.ts                      # cn() helper
+drizzle.config.ts                 # schema: src/db/schema.ts, dialect: postgresql
 ```
+
+### Meeting processing pipeline
+
+`POST /api/meetings/create` → fires Inngest event `actaflow/meeting.uploaded` → `processMeeting` function runs 5 steps:
+1. Mark meeting `status: 'processing'`
+2. Call `extractMeetingData()` (Gemini) — returns title, summary, attendees `{name, email}[]`, action_items, decisions, blockers
+3. Save attendees + action items to DB — email resolution uses 3-tier priority: **form field email (positional) → transcript-extracted email → fuzzy first-name match**
+4. Send per-attendee emails via Resend (skips attendees with no resolved email or no action items)
+5. Mark meeting `status: 'done'` (or `'failed'` on error)
+
+### Email auto-detection (frontend)
+`src/app/dashboard/new/page.tsx` runs a regex (`/[\w.+\-]+@[\w\-]+\.[\w.]+/g`) over the transcript as the user types and auto-fills the Attendee Emails field. Manual edits to the email field disable auto-fill (tracked via `useRef`).
 
 ### Key conventions
 
 **Styling** — Tailwind v4, no `tailwind.config.ts`. All tokens in `@theme inline {}` in `globals.css`. Use `oklch()` exclusively — never hex or rgb for brand colors.
 
-**Animations** — Framer Motion throughout. Type cubic-bezier arrays as `const EASE: [number, number, number, number]`, string eases as `"easeInOut" as const`. Every section uses `ref` + `useInView({ once: true })` for scroll-triggered animations.
+**Animations** — Framer Motion throughout. Type cubic-bezier arrays as `const EASE: [number, number, number, number]`. Dashboard stat cards use `animate()` from Framer Motion for number count-up on load.
 
 **Images** — All assets on Cloudinary (`res.cloudinary.com`). Animated GIFs require `unoptimized` prop on `<Image>`.
-
-**Page structure** — Landing page is `h-svh overflow-hidden` while only the hero exists. Remove `overflow-hidden` when adding scrollable sections.
 
 ---
 
@@ -167,21 +193,9 @@ drizzle.config.ts       # Drizzle Kit config — schema: src/db/schema.ts, diale
 - `<ClerkProvider>` wraps `{children}` inside `<body>` in `layout.tsx`.
 - Client components: `useUser()` for auth state + user data.
 - Server components / API routes: `auth()` from `@clerk/nextjs/server`.
-- Username is enabled in the Clerk dashboard — always prefer `user.username` before `user.firstName` as the display name.
+- Always prefer `user.username` before `user.firstName` as the display name.
 - All routes are public by default. Protected routes use `auth.protect()` inside `clerkMiddleware` in `proxy.ts`.
-
-**Auth flow:**
-- Unauthenticated user clicks nav links (Features / How It Works / Pricing) → redirected to `/sign-in`
-- "Get Started Free" CTA → `/sign-up`
-- After sign-in/up → redirects to `/` (update `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` when dashboard is ready)
-
----
-
-### Planned layers (not yet built)
-- `src/app/dashboard/` — authenticated app shell (protect via `auth.protect()` in proxy.ts)
-- `src/inngest/` — background jobs (AI extraction, email dispatch, reminders)
-- `src/emails/` — React Email templates (per-attendee action item email)
-- `src/lib/gemini.ts` — Gemini 2.0 Flash transcript → action items
+- `/api/inngest` must remain public — Inngest calls it from outside.
 
 ---
 

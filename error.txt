@@ -1,19 +1,2 @@
-PS C:\Users\ES\Desktop\2025\actaflow> npm run build
-
-> actaflow@0.1.0 build
-> next build
-
-⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
- We detected multiple lockfiles and selected the directory of C:\Users\ES\package-lock.json as the root directory.
- To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
-   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
- Detected additional lockfiles: 
-   * C:\Users\ES\Desktop\2025\actaflow\package-lock.json
-
-⨯ Another next build process is already running.
-
-  This could be:
-  - A next build still in progress
-  - A previous build that didn't exit cleanly
-
-  Suggestion: Wait for the build to complete.
+Form elements must have labels: Element has no title attribute Element has no placeholder attributeMicrosoft Edge Toolsaxe/forms
+(property) JSX.IntrinsicElements.input: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>
