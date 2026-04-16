@@ -21,7 +21,7 @@ export const sendReminders = inngest.createFunction(
     id: 'send-reminders',
     name: 'Send Daily Reminders',
     retries: 2,
-    triggers: [{ cron: '0 8 * * *' }],
+    triggers: [{ cron: '30 3 * * *' }], // 9:00 AM IST (UTC+5:30)
   },
   async ({ step }: { step: any }) => {
     // Step 1: Fetch all open items that need a reminder

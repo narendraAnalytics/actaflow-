@@ -154,12 +154,15 @@ src/
   inngest/
     client.ts                     # Inngest client instance
     functions/processMeeting.ts   # Full pipeline: Gemini → DB → Resend emails
+    functions/sendReminders.ts    # Daily cron (9 AM IST = 30 3 * * *) — reminder + overdue alert emails
   emails/
     ActionItemEmail.tsx           # React Email template — per-attendee personalised email
+    ReminderEmail.tsx             # Reminder/overdue alert email — type: 'reminder' | 'overdue'
+    DoneNotificationEmail.tsx     # Organiser notification when attendee marks item done
   lib/
     auth.ts                       # getOrCreateUser() — lazy Clerk→Neon sync
     gemini.ts                     # extractMeetingData() + transcribeVideo() — Gemini 3-Flash
-    email.ts                      # sendActionItemEmail() — wraps Resend
+    email.ts                      # sendActionItemEmail() + sendReminderEmail() + sendDoneNotificationEmail()
     cloudinary.ts                 # uploadVideoToCloudinary() — streams to actaflow/meetings folder
     utils.ts                      # cn() helper
 drizzle.config.ts                 # schema: src/db/schema.ts, dialect: postgresql
@@ -177,6 +180,16 @@ Both fire `actaflow/meeting.uploaded` → `processMeeting` runs 5 idempotent ste
 3. Save attendees + action items — **3-tier email resolution**: form field (positional index) → Gemini-extracted email → fuzzy first-name match against form emails. Action items without a resolved email are skipped
 4. Send per-attendee emails via Resend (skips if no email or no action items). Each email logged in `email_logs`. `doneToken` per action item is a cuid2 — enables `/api/action-items/{id}/done?token={doneToken}` links with no auth
 5. Mark meeting `status: 'done'` (or `'failed'` on pipeline error)
+
+### Reminder & notification pipeline
+
+**Daily cron** (`sendReminders` — `30 3 * * *` = 9 AM IST): queries `action_items` for open items where `dueDate` is set, `ownerEmail` is not null, and `reminderSentAt` is null. Sends:
+- **Reminder** email — item due today, or high-priority item due tomorrow
+- **Overdue** email (red theme) — item past due date
+
+After sending, stamps `reminderSentAt` so each item gets at most one reminder. Items with `status = 'done'` are excluded entirely.
+
+**Done notification**: when an attendee hits `/api/action-items/[id]/done`, the route marks the item done then fires `sendDoneNotificationEmail()` to the meeting organiser (fire-and-forget — email failure never blocks the redirect).
 
 ### Email auto-detection (frontend)
 `src/app/dashboard/new/page.tsx` runs a regex (`/[\w.+\-]+@[\w\-]+\.[\w.]+/g`) over the transcript as the user types and auto-fills the Attendee Emails field. Manual edits to the email field disable auto-fill (tracked via `useRef`).
@@ -222,6 +235,9 @@ import { getOrCreateUser } from '@/lib/auth';
 const user = await getOrCreateUser(); // creates DB row on first call
 ```
 
+### All FK constraints use CASCADE DELETE
+Every FK in the schema has `{ onDelete: 'cascade' }`. Deleting a `users` row cascades through meetings → attendees → action_items → email_logs and contacts. Safe to delete a user in Drizzle Studio for testing — re-signing in via Clerk recreates the row via `getOrCreateUser()`.
+
 ### Critical: Clerk IDs are NOT UUIDs
 Clerk user IDs have the format `user_xxxxxxx` — they are **strings, not UUIDs**.
 - `users.id` is `text` type (NOT `uuid`) — **never change this to uuid**
@@ -253,7 +269,7 @@ RESEND_FROM_EMAIL=
 RESEND_FROM_NAME=
 INNGEST_EVENT_KEY=
 INNGEST_SIGNING_KEY=
-INNGEST_DEV=1
+INNGEST_DEV=1                    # Local only — do NOT set on Vercel (absence = production mode)
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=

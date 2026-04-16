@@ -1,5 +1,4 @@
-delete from "users"
-where
-  "id" = 'user_3CKzRbC5lHFT0uHwB9CsoLYvx5v'
-Error:
-update or delete on table "users" violates foreign key constraint "action_items_user_id_users_id_fk" on table "action_items"
+https://actaflow.vercel.app/api/inngest
+
+Override Input
+Please ensure that your app ID (docs) is not changed before resyncing. Changing the app ID will result in the creation of a new app in this environment.
