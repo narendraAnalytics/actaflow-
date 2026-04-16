@@ -62,6 +62,7 @@ export const actionItems = pgTable('action_items', {
     .unique()
     .$defaultFn(() => createId()),
   doneAt: timestamp('done_at', { withTimezone: true }),
+  reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
