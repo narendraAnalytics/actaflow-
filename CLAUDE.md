@@ -127,6 +127,8 @@ src/
     page.tsx                      # Landing page — calls getOrCreateUser() on sign-in
     sign-in/[[...sign-in]]/       # Clerk <SignIn /> page
     sign-up/[[...sign-up]]/       # Clerk <SignUp /> page
+    pricing/
+      page.tsx                    # Pricing page — <PricingTable /> + static feature comparison table (Free/Plus/Pro)
     dashboard/
       layout.tsx                  # DashboardSidebar + main content shell
       page.tsx                    # Server component — fetches meetings + stats, renders DashboardClient
@@ -141,7 +143,7 @@ src/
       meetings/[id]/route.ts      # GET — single meeting with attendees + action items
       action-items/[id]/done/     # GET — mark done via doneToken query param, redirects to /?done=success|invalid (no auth required)
   components/
-    Navbar.tsx                    # Fixed navbar
+    Navbar.tsx                    # Fixed navbar — Pricing links to /pricing; plan badge (Free/Plus/Pro) shown via useAuth().has() when signed in
     HeroSection.tsx               # Landing hero with animated counter
     dashboard/
       DashboardClient.tsx         # Animated stats cards + meeting list (client component)
@@ -217,6 +219,32 @@ After sending, stamps `reminderSentAt` so each item gets at most one reminder. I
 - All routes are public by default. Protected routes use `auth.protect()` inside `clerkMiddleware` in `proxy.ts`.
 - `/api/inngest` must remain public — Inngest calls it from outside.
 - `/api/action-items/[id]/done` must remain public — token-based, no Clerk needed.
+
+---
+
+## Clerk Billing
+
+Plans are configured in the Clerk Dashboard (not in code). Three tiers: **Free**, **Plus** ($10/mo), **Pro** ($29/mo).
+
+**Pricing page** (`src/app/pricing/page.tsx`) uses `<PricingTable />` from `@clerk/nextjs` — it renders the Clerk Dashboard plans automatically. The page is a plain server component with no auth logic; the Navbar's `handleNavClick` guard redirects unsigned users to `/sign-in` before they reach it.
+
+**Checking plans in code:**
+```ts
+// Client component
+const { has } = useAuth();
+has({ plan: 'pro' })   // boolean
+
+// Server component / API route
+const { has } = await auth();
+has({ plan: 'pro' })   // boolean
+```
+
+**Checking features** (for feature-gated access):
+```ts
+has({ feature: 'premium_access' })
+```
+
+The Navbar reads the current plan client-side via `useAuth().has()` and renders a coloured pill badge next to `<UserButton />` — violet for Pro, amber for Plus, muted for Free.
 
 ---
 

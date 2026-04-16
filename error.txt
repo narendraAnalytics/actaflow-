@@ -1,4 +1,42 @@
-https://actaflow.vercel.app/api/inngest
-
-Override Input
-Please ensure that your app ID (docs) is not changed before resyncing. Changing the app ID will result in the creation of a new app in this environment.
+⨯ ReferenceError: auth is not defined
+    at PricingPage (src\app\pricing\page.tsx:115:19)
+  113 |
+  114 | export default async function PricingPage() {
+> 115 |   const { has } = await auth();
+      |                   ^
+  116 |
+  117 |   const currentPlan =
+  118 |     has({ plan: "pro" })  ? "pro"  : {
+  digest: '2369178308'
+}
+ GET /pricing 200 in 626ms (next.js: 410ms, proxy.ts: 42ms, application-code: 174ms)
+[browser] Uncaught ReferenceError: auth is not defined
+    at PricingPage (src\app\pricing\page.tsx:115:19)
+  113 |
+  114 | export default async function PricingPage() {
+> 115 |   const { has } = await auth();
+      |                   ^
+  116 |
+  117 |   const currentPlan =
+  118 |     has({ plan: "pro" })  ? "pro"  :
+⨯ ReferenceError: auth is not defined
+    at PricingPage (src\app\pricing\page.tsx:115:19)
+  113 |
+  114 | export default async function PricingPage() {
+> 115 |   const { has } = await auth();
+      |                   ^
+  116 |
+  117 |   const currentPlan =
+  118 |     has({ plan: "pro" })  ? "pro"  : {
+  digest: '2369178308'
+}
+ GET /pricing 500 in 673ms (next.js: 14ms, proxy.ts: 32ms, application-code: 627ms)
+[browser] Uncaught ReferenceError: auth is not defined
+    at PricingPage (src\app\pricing\page.tsx:115:19)
+  113 |
+  114 | export default async function PricingPage() {
+> 115 |   const { has } = await auth();
+      |                   ^
+  116 |
+  117 |   const currentPlan =
+  118 |     has({ plan: "pro" })  ? "pro"  :

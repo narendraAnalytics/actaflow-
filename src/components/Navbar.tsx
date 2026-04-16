@@ -6,22 +6,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Show, UserButton, useUser } from "@clerk/nextjs";
+import { Show, UserButton, useUser, useAuth } from "@clerk/nextjs";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 const navLinks = [
   { label: "Features", href: "#features" },
   { label: "How It Works", href: "#how-it-works" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [navVisible, setNavVisible] = useState(true);
   const { user, isSignedIn } = useUser();
+  const { has } = useAuth();
   const router = useRouter();
   const displayName = user?.username ?? user?.firstName ?? "there";
+
+  const currentPlan =
+    has?.({ plan: "pro" })
+      ? { label: "Pro",  bg: "oklch(0.52 0.28 300 / 0.12)", border: "oklch(0.52 0.28 300 / 0.35)", color: "oklch(0.40 0.22 300)" }
+      : has?.({ plan: "plus" })
+      ? { label: "Plus", bg: "oklch(0.80 0.17 75 / 0.13)",  border: "oklch(0.80 0.17 75 / 0.40)",  color: "oklch(0.42 0.14 75)"  }
+      : { label: "Free", bg: "oklch(0.945 0.012 285)",       border: "oklch(0.88 0.02 285)",         color: "oklch(0.50 0.06 285)" };
 
   function handleNavClick(
     e: React.MouseEvent<HTMLAnchorElement>,
@@ -124,6 +132,16 @@ export default function Navbar() {
                       transition={{ delay: navLinks.length * 0.05, duration: 0.22, ease: "easeOut" }}
                       className="ml-2 flex items-center"
                     >
+                      <span
+                        className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                        style={{
+                          background: currentPlan.bg,
+                          border: `1px solid ${currentPlan.border}`,
+                          color: currentPlan.color,
+                        }}
+                      >
+                        {currentPlan.label}
+                      </span>
                       <UserButton />
                     </motion.div>
                   </Show>
@@ -199,8 +217,18 @@ export default function Navbar() {
                   initial={{ opacity: 0, x: -14 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: navLinks.length * 0.06, duration: 0.22, ease: "easeOut" }}
-                  className="mt-3 px-2 flex justify-center"
+                  className="mt-3 px-2 flex justify-center items-center gap-2"
                 >
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                    style={{
+                      background: currentPlan.bg,
+                      border: `1px solid ${currentPlan.border}`,
+                      color: currentPlan.color,
+                    }}
+                  >
+                    {currentPlan.label}
+                  </span>
                   <UserButton />
                 </motion.div>
               </Show>
