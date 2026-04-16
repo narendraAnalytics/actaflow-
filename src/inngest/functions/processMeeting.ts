@@ -1,9 +1,10 @@
 import { inngest } from '@/inngest/client';
 import { db } from '@/db';
-import { meetings, attendees, actionItems, emailLogs } from '@/db/schema';
+import { meetings, attendees, actionItems, emailLogs, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { extractMeetingData, transcribeVideo, type GeminiAttendee } from '@/lib/gemini';
 import { sendActionItemEmail } from '@/lib/email';
+import { PLAN_LIMITS, type PlanKey } from '@/lib/plans';
 
 export const processMeeting = inngest.createFunction(
   {
@@ -22,6 +23,12 @@ export const processMeeting = inngest.createFunction(
           .update(meetings)
           .set({ status: 'processing' })
           .where(eq(meetings.id, meetingId));
+      });
+
+      // Fetch user plan for downstream enforcement
+      const userPlan = await step.run('fetch-user-plan', async () => {
+        const [user] = await db.select({ plan: users.plan }).from(users).where(eq(users.id, userId)).limit(1);
+        return (user?.plan ?? 'free') as PlanKey;
       });
 
       // Step 2: Transcribe (if audio/video upload) then call Gemini
@@ -117,16 +124,20 @@ export const processMeeting = inngest.createFunction(
         return insertedAttendees;
       });
 
-      // Step 4: Send emails
+      // Step 4: Send emails (capped by plan's maxAttendeeEmails)
       await step.run('send-emails', async () => {
         const items = await db
           .select()
           .from(actionItems)
           .where(eq(actionItems.meetingId, meetingId));
 
-        for (const attendee of savedAttendees) {
-          if (!attendee.email) continue;
+        const planLimit = PLAN_LIMITS[userPlan as PlanKey].maxAttendeeEmails;
+        // Only email attendees who have an email address, capped at plan limit
+        const eligibleAttendees = savedAttendees
+          .filter((a: { email: string | null }) => !!a.email)
+          .slice(0, planLimit === Infinity ? undefined : planLimit);
 
+        for (const attendee of eligibleAttendees) {
           // Filter action items owned by this attendee
           const attendeeItems = items.filter(
             (item) =>

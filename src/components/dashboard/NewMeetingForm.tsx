@@ -130,6 +130,7 @@ export default function NewMeetingForm({ planInfo }: NewMeetingFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [limitError, setLimitError] = useState<'meeting' | 'attendee' | null>(null);
 
   // Computed email count for plan limit check
   const emailCount = attendeeEmails
@@ -162,20 +163,10 @@ export default function NewMeetingForm({ planInfo }: NewMeetingFormProps) {
     setTranscript(SAMPLE_TRANSCRIPT);
   }
 
-  // Map API error codes to friendly messages
-  function friendlyError(raw: string): string {
-    if (raw === 'MEETING_LIMIT_REACHED') {
-      return `Free plan: ${planInfo.meetingsThisMonth}/${planInfo.meetingLimit} meetings used this month. Upgrade to Plus for more meetings.`;
-    }
-    if (raw === 'ATTENDEE_LIMIT_EXCEEDED') {
-      return `Free plan allows up to ${planInfo.maxAttendeeEmails} attendee emails per meeting. Upgrade to Plus for unlimited.`;
-    }
-    return raw;
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setLimitError(null);
     setIsSubmitting(true);
     setStepIndex(0);
 
@@ -194,7 +185,10 @@ export default function NewMeetingForm({ planInfo }: NewMeetingFormProps) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(friendlyError((data as { error?: string }).error ?? 'Something went wrong'));
+        const code = (data as { error?: string }).error ?? '';
+        if (code === 'MEETING_LIMIT_REACHED') { setLimitError('meeting'); setIsSubmitting(false); return; }
+        if (code === 'ATTENDEE_LIMIT_EXCEEDED') { setLimitError('attendee'); setIsSubmitting(false); return; }
+        throw new Error(code || 'Something went wrong');
       }
 
       const data = (await res.json()) as { meetingId: string };
@@ -243,6 +237,7 @@ export default function NewMeetingForm({ planInfo }: NewMeetingFormProps) {
     e.preventDefault();
     if (!uploadFile) return;
     setError(null);
+    setLimitError(null);
     setIsSubmitting(true);
     setStepIndex(0);
 
@@ -267,7 +262,10 @@ export default function NewMeetingForm({ planInfo }: NewMeetingFormProps) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(friendlyError((data as { error?: string }).error ?? 'Upload failed'));
+        const code = (data as { error?: string }).error ?? '';
+        if (code === 'MEETING_LIMIT_REACHED') { setLimitError('meeting'); setIsSubmitting(false); return; }
+        if (code === 'ATTENDEE_LIMIT_EXCEEDED') { setLimitError('attendee'); setIsSubmitting(false); return; }
+        throw new Error(code || 'Upload failed');
       }
 
       const data = (await res.json()) as { meetingId: string };
@@ -714,7 +712,96 @@ export default function NewMeetingForm({ planInfo }: NewMeetingFormProps) {
               </AnimatePresence>
             </motion.div>
 
-            {/* Error */}
+            {/* Limit-hit upgrade cards (shown when API returns 403 after form submit) */}
+            <AnimatePresence>
+              {limitError === 'meeting' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="rounded-2xl p-6 flex items-start gap-4"
+                  style={{
+                    background: 'oklch(0.80 0.17 75 / 0.09)',
+                    border: '1px solid oklch(0.80 0.17 75 / 0.28)',
+                  }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: 'oklch(0.80 0.17 75 / 0.20)' }}
+                  >
+                    <Lock size={18} style={{ color: 'oklch(0.44 0.14 75)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold mb-1" style={{ color: 'oklch(0.28 0.08 285)' }}>
+                      {planInfo.plan === 'free' ? 'Free' : 'Plus'} plan meeting limit reached
+                    </p>
+                    <p className="text-xs leading-relaxed mb-3" style={{ color: 'oklch(0.50 0.06 285)' }}>
+                      You've used {planInfo.meetingsThisMonth}/{planInfo.meetingLimit} meetings this month.{' '}
+                      {planInfo.plan === 'free'
+                        ? 'Upgrade to Plus for 20 meetings/month.'
+                        : 'Upgrade to Pro for unlimited meetings.'}
+                    </p>
+                    <a
+                      href="/pricing"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all duration-150 hover:scale-[1.02]"
+                      style={{
+                        background: 'oklch(0.55 0.25 285)',
+                        color: 'oklch(0.985 0.006 90)',
+                        boxShadow: '0 2px 12px oklch(0.55 0.25 285 / 0.25)',
+                      }}
+                    >
+                      <Zap size={12} />
+                      {planInfo.plan === 'free' ? 'Upgrade to Plus — $10/mo' : 'Upgrade to Pro — $29/mo'}
+                      <ChevronRight size={12} />
+                    </a>
+                  </div>
+                </motion.div>
+              )}
+
+              {limitError === 'attendee' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="rounded-2xl p-6 flex items-start gap-4"
+                  style={{
+                    background: 'oklch(0.80 0.17 75 / 0.09)',
+                    border: '1px solid oklch(0.80 0.17 75 / 0.28)',
+                  }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: 'oklch(0.80 0.17 75 / 0.20)' }}
+                  >
+                    <Users size={18} style={{ color: 'oklch(0.44 0.14 75)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold mb-1" style={{ color: 'oklch(0.28 0.08 285)' }}>
+                      Too many attendee emails
+                    </p>
+                    <p className="text-xs leading-relaxed mb-3" style={{ color: 'oklch(0.50 0.06 285)' }}>
+                      Free plan allows up to {planInfo.maxAttendeeEmails} attendee emails per meeting.
+                      Remove some emails or upgrade to Plus for unlimited attendees.
+                    </p>
+                    <a
+                      href="/pricing"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all duration-150 hover:scale-[1.02]"
+                      style={{
+                        background: 'oklch(0.55 0.25 285)',
+                        color: 'oklch(0.985 0.006 90)',
+                        boxShadow: '0 2px 12px oklch(0.55 0.25 285 / 0.25)',
+                      }}
+                    >
+                      <Zap size={12} />
+                      Upgrade to Plus — $10/mo
+                      <ChevronRight size={12} />
+                    </a>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Real errors (network, server, etc.) */}
             <AnimatePresence>
               {error && (
                 <motion.div

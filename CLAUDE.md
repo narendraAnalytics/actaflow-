@@ -132,7 +132,7 @@ src/
     dashboard/
       layout.tsx                  # DashboardSidebar + main content shell
       page.tsx                    # Server component — fetches meetings + stats, renders DashboardClient
-      new/page.tsx                # New meeting form — transcript paste + attendee emails
+      new/page.tsx                # Server wrapper — fetches PlanInfo, renders NewMeetingForm
       [id]/page.tsx               # Meeting detail — action items, attendee list, email status
     api/
       inngest/route.ts            # Inngest webhook handler (must be public)
@@ -146,9 +146,10 @@ src/
     Navbar.tsx                    # Fixed navbar — Pricing links to /pricing; plan badge (Free/Plus/Pro) shown via useAuth().has() when signed in
     HeroSection.tsx               # Landing hero with animated counter
     dashboard/
-      DashboardClient.tsx         # Animated stats cards + meeting list (client component)
+      DashboardClient.tsx         # Animated stats cards + meeting list + plan usage banner (client component)
       DashboardSidebar.tsx        # Sidebar nav with UserButton
       MeetingDetailClient.tsx     # Meeting detail view (client component)
+      NewMeetingForm.tsx          # New meeting client form — paste/upload tabs, plan restriction UI, limit error cards
     ui/                           # shadcn/ui primitives
   db/
     schema.ts                     # Drizzle schema — 6 tables (see below)
@@ -162,7 +163,8 @@ src/
     ReminderEmail.tsx             # Reminder/overdue alert email — type: 'reminder' | 'overdue'
     DoneNotificationEmail.tsx     # Organiser notification when attendee marks item done
   lib/
-    auth.ts                       # getOrCreateUser() — lazy Clerk→Neon sync
+    auth.ts                       # getOrCreateUser() — lazy Clerk→Neon sync + lazy plan sync on every call
+    plans.ts                      # PLAN_LIMITS, PlanInfo, PlanKey, getMonthStart(), isThisMonth() — plan constants hub
     gemini.ts                     # extractMeetingData() + transcribeVideo() — Gemini 3-Flash
     email.ts                      # sendActionItemEmail() + sendReminderEmail() + sendDoneNotificationEmail()
     cloudinary.ts                 # uploadVideoToCloudinary() — streams to actaflow/meetings folder
@@ -176,25 +178,28 @@ Two entry points both fire the same Inngest event:
 - **Paste flow**: `POST /api/meetings/create` (transcript in body)
 - **Upload flow**: `POST /api/meetings/upload` (audio/video → Cloudinary → `audioUrl` stored)
 
-Both fire `actaflow/meeting.uploaded` → `processMeeting` runs 5 idempotent steps (3 retries):
+Both fire `actaflow/meeting.uploaded` → `processMeeting` runs 6 idempotent steps (3 retries):
 1. Mark meeting `status: 'processing'`
-2. If `source: 'upload'` and no transcript: fetch from Cloudinary → `transcribeVideo()` via Gemini Files API (polls until ACTIVE, then cleans up) → persist transcript. Then call `extractMeetingData()` → returns title, summary, attendees `{name, email}[]`, action_items, decisions, blockers
-3. Save attendees + action items — **3-tier email resolution**: form field (positional index) → Gemini-extracted email → fuzzy first-name match against form emails. Action items without a resolved email are skipped
-4. Send per-attendee emails via Resend (skips if no email or no action items). Each email logged in `email_logs`. `doneToken` per action item is a cuid2 — enables `/api/action-items/{id}/done?token={doneToken}` links with no auth
-5. Mark meeting `status: 'done'` (or `'failed'` on pipeline error)
+2. Fetch `users.plan` for the meeting owner (used in step 5 for email cap)
+3. If `source: 'upload'` and no transcript: fetch from Cloudinary → `transcribeVideo()` via Gemini Files API (polls until ACTIVE, then cleans up) → persist transcript. Then call `extractMeetingData()` → returns title, summary, attendees `{name, email}[]`, action_items, decisions, blockers
+4. Save attendees + action items — **3-tier email resolution**: form field (positional index) → Gemini-extracted email → fuzzy first-name match against form emails. Action items without a resolved email are skipped
+5. Send per-attendee emails via Resend — **capped at `PLAN_LIMITS[plan].maxAttendeeEmails`** (3 for free, unlimited for plus/pro). Each email logged in `email_logs`. `doneToken` per action item is a cuid2 — enables `/api/action-items/{id}/done?token={doneToken}` links with no auth
+6. Mark meeting `status: 'done'` (or `'failed'` on pipeline error)
 
 ### Reminder & notification pipeline
 
-**Daily cron** (`sendReminders` — `30 3 * * *` = 9 AM IST): queries `action_items` for open items where `dueDate` is set, `ownerEmail` is not null, and `reminderSentAt` is null. Sends:
+**Daily cron** (`sendReminders` — `30 3 * * *` = 9 AM IST): queries `action_items` joined with `users` for open items where `dueDate` is set, `ownerEmail` is not null, and `reminderSentAt` is null. Sends:
 - **Reminder** email — item due today, or high-priority item due tomorrow
 - **Overdue** email (red theme) — item past due date
 
-After sending, stamps `reminderSentAt` so each item gets at most one reminder. Items with `status = 'done'` are excluded entirely.
+After sending, stamps `reminderSentAt` on each action item. Items with `status = 'done'` are excluded entirely.
+
+**Free plan cap**: before sending, items are grouped by `userId`. If `users.reminderMonthSentAt` is in the current calendar month, that user's entire batch is skipped. After the first successful send for a free-plan user, `users.reminderMonthSentAt` is set to today — enforcing one reminder batch per month.
 
 **Done notification**: when an attendee hits `/api/action-items/[id]/done`, the route marks the item done then fires `sendDoneNotificationEmail()` to the meeting organiser (fire-and-forget — email failure never blocks the redirect).
 
 ### Email auto-detection (frontend)
-`src/app/dashboard/new/page.tsx` runs a regex (`/[\w.+\-]+@[\w\-]+\.[\w.]+/g`) over the transcript as the user types and auto-fills the Attendee Emails field. Manual edits to the email field disable auto-fill (tracked via `useRef`).
+`src/components/dashboard/NewMeetingForm.tsx` runs a regex (`/[\w.+\-]+@[\w\-]+\.[\w.]+/g`) over the transcript as the user types and auto-fills the Attendee Emails field. Manual edits to the email field disable auto-fill (tracked via `useRef`).
 
 ### Key conventions
 
@@ -246,6 +251,38 @@ has({ feature: 'premium_access' })
 
 The Navbar reads the current plan client-side via `useAuth().has()` and renders a coloured pill badge next to `<UserButton />` — violet for Pro, amber for Plus, muted for Free.
 
+### Plan enforcement architecture
+
+**Source of truth:** Clerk. **DB cache:** `users.plan`. **Sync:** lazy — `getOrCreateUser()` calls `has({ plan: 'pro' })` / `has({ plan: 'plus' })` on every request and updates DB if the plan changed. No webhook needed.
+
+**Plan limits** are defined once in `src/lib/plans.ts`:
+```ts
+import { PLAN_LIMITS, type PlanKey, type PlanInfo } from '@/lib/plans';
+// Free: 2 meetings/mo, 3 attendee emails, monthly reminder
+// Plus: 20 meetings/mo, unlimited emails, daily reminder
+// Pro:  unlimited everything
+```
+
+**`PlanInfo` prop pattern** — server components compute and pass down:
+```ts
+// In server page components (dashboard/page.tsx, dashboard/new/page.tsx):
+const user = await getOrCreateUser(); // syncs plan
+const limits = PLAN_LIMITS[user.plan as PlanKey];
+const planInfo: PlanInfo = { plan, meetingsThisMonth, meetingLimit, maxAttendeeEmails, isAtLimit, isUnlimited };
+// Pass as prop to client component — client never calls Clerk for plan checks
+```
+
+**Hard enforcement** (API layer, independent of UI):
+- `POST /api/meetings/create` and `POST /api/meetings/upload` return `{ error: 'MEETING_LIMIT_REACHED' }` (403) or `{ error: 'ATTENDEE_LIMIT_EXCEEDED' }` (403) before any DB/Cloudinary work.
+- `processMeeting` Inngest function caps the attendee email loop at `PLAN_LIMITS[plan].maxAttendeeEmails`.
+
+**UI enforcement** — `NewMeetingForm.tsx` receives `planInfo` and:
+- Disables both tabs + shows lock/upgrade banner when `isAtLimit`
+- Shows inline amber warning when free-plan user exceeds 3 emails
+- Renders plan-specific upgrade cards (not generic error boxes) when API returns limit error codes
+
+**Critical:** Clerk plan slugs must be exactly `'plus'` and `'pro'` (lowercase) in the Clerk Dashboard — the sync logic uses `has({ plan: 'pro' })` which matches the slug literally.
+
 ---
 
 ## Database (Neon + Drizzle)
@@ -260,8 +297,13 @@ import { db } from '@/db';
 **Lazy user sync — no Clerk webhook needed:**
 ```ts
 import { getOrCreateUser } from '@/lib/auth';
-const user = await getOrCreateUser(); // creates DB row on first call
+const user = await getOrCreateUser(); // creates DB row on first call; syncs users.plan from Clerk on every call
 ```
+
+### users table key columns
+- `plan` (varchar, default `'free'`) — synced from Clerk on every `getOrCreateUser()` call
+- `meetingsUsed` (integer) — legacy counter, not used for enforcement; monthly count is queried live from `meetings`
+- `reminderMonthSentAt` (timestamp, nullable) — set after first reminder email sent to a free-plan user each month; null = never sent this month
 
 ### All FK constraints use CASCADE DELETE
 Every FK in the schema has `{ onDelete: 'cascade' }`. Deleting a `users` row cascades through meetings → attendees → action_items → email_logs and contacts. Safe to delete a user in Drizzle Studio for testing — re-signing in via Clerk recreates the row via `getOrCreateUser()`.
