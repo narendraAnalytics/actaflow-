@@ -130,7 +130,7 @@ export default function PricingPage() {
       />
 
       {/* Back to home — top left */}
-      <div className="relative z-10 px-4 sm:px-6 lg:px-8 pt-6">
+      <div className="relative z-10 px-4 sm:px-6 lg:px-8 pt-6 flex items-center gap-3">
         <Link
           href="/"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 group"
@@ -139,7 +139,6 @@ export default function PricingPage() {
             background: "oklch(0.945 0.012 285)",
             border: "1px solid oklch(0.88 0.02 285)",
           }}
-          onMouseEnter={undefined}
           aria-label="Back to home"
         >
           <ArrowLeft
@@ -147,6 +146,18 @@ export default function PricingPage() {
             className="transition-transform duration-200 group-hover:-translate-x-0.5"
           />
           Home
+        </Link>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200"
+          style={{
+            color: "oklch(0.985 0.006 90)",
+            background: "oklch(0.55 0.25 285)",
+            border: "1px solid oklch(0.50 0.25 285)",
+          }}
+          aria-label="Go to dashboard"
+        >
+          Dashboard
         </Link>
       </div>
 
