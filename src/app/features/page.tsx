@@ -16,6 +16,7 @@ import {
   AtSign,
   ShieldCheck,
   ArrowRight,
+  Home,
 } from "lucide-react";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -725,6 +726,22 @@ export default function FeaturesPage() {
             </motion.button>
           )}
         </AnimatePresence>
+
+        {/* ── Home button (top-left) ── */}
+        <Link
+          href="/"
+          className="fixed top-20 left-6 z-40 flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 hover:scale-105"
+          style={{
+            background: "oklch(0.985 0.006 90 / 0.85)",
+            border: "1px solid oklch(0.88 0.02 285)",
+            boxShadow: "0 4px 16px oklch(0.55 0.25 285 / 0.10)",
+            backdropFilter: "blur(8px)",
+            color: "oklch(0.44 0.12 285)",
+          }}
+        >
+          <Home size={13} strokeWidth={2.2} />
+          Home
+        </Link>
 
         {/* ── Slide counter (top-right) — features + tech slide only ── */}
         {current > 0 && current < TOTAL - 1 && (
