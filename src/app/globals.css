@@ -156,3 +156,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+/* Clerk payment/checkout modal — must float above PricingTable cards */
+.cl-modalBackdrop,
+.cl-modalContent,
+.cl-modal,
+.cl-checkout,
+.cl-checkoutPage {
+  z-index: 9999 !important;
+}

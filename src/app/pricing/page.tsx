@@ -130,7 +130,7 @@ export default function PricingPage() {
       />
 
       {/* Back to home — top left */}
-      <div className="relative z-10 px-4 sm:px-6 lg:px-8 pt-6 flex items-center gap-3">
+      <div className="relative px-4 sm:px-6 lg:px-8 pt-6 flex items-center gap-3">
         <Link
           href="/"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 group"
@@ -161,7 +161,7 @@ export default function PricingPage() {
         </Link>
       </div>
 
-      <main className="relative z-10 pt-10 pb-24 px-4 sm:px-6 lg:px-8">
+      <main className="relative pt-10 pb-24 px-4 sm:px-6 lg:px-8">
         {/* ── Header ── */}
         <div className="text-center mb-12">
           <span
