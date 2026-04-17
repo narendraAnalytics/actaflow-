@@ -1,23 +1,9 @@
-Free Plan :
-
-Nice ui message in dashboard :
-
-Meetings per month free 2 only nice ui message 2 meetings count 2 either is pastetranscript or uplaodaudio/video  count starts.
-
-when count 2 or meetings created 2 so nice ui message free plan 2 meetings permonth update to plus for more meetings .
-
-Also 1 meeting created nice ui message 1/2 completed .
-
-When meetigns in free 2 completed if user tried to pastetranscript or uplaodaudio not availiable  when 2 meetings completed for 
-this month . No clcik for pastetranscript or uplaodaudio.
-
-For Attendee emails free user 3 members also . when tried to add manually or typescript extarcted only 3 mails in free plan .
-
-Also nice ui message when added to 4 mail in free plan .
-Also email whenanalyze meeting email sent ok . for remider mail only once permonth only . Once sent no mail in that month .
-
-In the same way we done with pro,plus plan also.
-
-Also in neon database in free plan deafult rather than using clerck webhook may be use lazysync . when user to switch plan form 
-
-free to pro or plus tag changes ui messages and restrictions changes according to the pricing paln .
+feature 1 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438449/feature1_z6azbr.png
+feature 2 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438448/feature2_qeidx4.png
+feature 3 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438442/feature3_tifwzf.png
+feature 4 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438445/feature4_fwp80z.png
+feature 5 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438444/feature5_qw4bdv.png
+feature 6 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438454/feature6_mc9c18.png
+feature 7 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438449/feature7_rfgefp.png
+feature 8 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438448/feature8_tb1jwb.png
+tech details : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438453/techdetails_busywc.png

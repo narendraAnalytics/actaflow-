@@ -1,2 +1,326 @@
-herosectionbackgroundurl : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776083797/herosectionbackgroundimage1_tu367t.png
-sarahk gif : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776083794/gamer_12764339_usrash.gif
+═══════════════════════════════════════════════════════════════════════════════
+  ACTAFLOW — Action Item Extractor & Execution Engine
+  Features Documentation  ·  Built by Narendra  ·  linkedin.com/in/nk-analytics
+═══════════════════════════════════════════════════════════════════════════════
+
+
+────────────────────────────────────────────────────────────────────────────
+  WHAT IS ACTAFLOW?
+────────────────────────────────────────────────────────────────────────────
+
+  ActaFlow turns every meeting into a trackable execution workflow.
+
+  Drop in a recording or paste a transcript — every attendee receives a
+  personalised email listing only their action items, with deadlines and
+  priorities, within 2 minutes. No more "who was supposed to do what?"
+  after a meeting.
+
+  Tagline: "Turn meetings into action."
+
+
+────────────────────────────────────────────────────────────────────────────
+  THE PROBLEMS WE SOLVE
+────────────────────────────────────────────────────────────────────────────
+
+  ✗  PROBLEM 1 — Action items get lost
+     After every meeting someone writes a summary that nobody reads.
+     Tasks are buried in chat threads or long email chains and silently die.
+
+  ✗  PROBLEM 2 — Wrong people get the full picture
+     Every attendee gets the same wall-of-text meeting notes.
+     Nobody wants to hunt through 30 bullet points to find their 2 tasks.
+
+  ✗  PROBLEM 3 — No accountability on deadlines
+     Verbal "by Friday" commitments evaporate. No system follows up.
+     Overdue items are discovered only at the next meeting — too late.
+
+  ✗  PROBLEM 4 — Manual extraction is slow and inconsistent
+     Someone has to read the whole transcript, identify owners, write tasks,
+     set priorities, then copy-paste into Jira / Notion. This takes 20–40 min.
+
+  ✗  PROBLEM 5 — Audio recordings are a black box
+     Video call recordings sit unprocessed. Key decisions and commitments
+     inside them are invisible unless someone watches the whole thing.
+
+
+════════════════════════════════════════════════════════════════════════════
+  FEATURES
+════════════════════════════════════════════════════════════════════════════
+
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  FEATURE 1 — Transcript Paste & Instant Extraction                 │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Description:
+    Paste any meeting transcript (Google Meet auto-captions, Zoom transcript,
+    Otter.ai export, manual notes) into the input field and hit submit.
+    ActaFlow sends it to Gemini AI, which reads the entire text and returns
+    a structured JSON of attendees, action items, decisions, and blockers.
+
+  Problem Solved:
+    Eliminates 20–40 minutes of manual extraction per meeting.
+    Works with any transcript format — no special export required.
+
+  Who benefits: Team leads, project managers, anyone running recurring meetings.
+
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  FEATURE 2 — Audio / Video Upload & Auto-Transcription             │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Description:
+    Upload a raw audio or video file (MP4, MP3, WAV, WebM — up to 500 MB
+    on Pro). ActaFlow uploads it to Cloudinary, then sends it to the
+    Gemini Files API which transcribes speech to text automatically.
+    The transcript is then processed through the same extraction pipeline.
+
+  Problem Solved:
+    Unlocks recordings that were never transcribed. A Zoom cloud recording
+    or a Loom video can now produce action items without anyone watching it.
+
+  Who benefits: Remote teams, async-first companies, anyone using video calls.
+
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  FEATURE 3 — Personalised Per-Attendee Emails                      │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Description:
+    After extraction, each attendee receives a single focused email that
+    contains only their action items — not the full meeting summary.
+    Each item shows the task description, priority level (high/medium/low),
+    due date, and a one-click "Mark as Done" link that requires no login.
+
+    Email delivery uses a 3-tier resolution system:
+      Tier 1 — Email explicitly provided in the meeting form
+      Tier 2 — Email extracted directly from the transcript by Gemini
+      Tier 3 — Fuzzy first-name match against provided email addresses
+
+  Problem Solved:
+    Eliminates the "read the whole notes" friction. Each person gets exactly
+    what they need to act, in their inbox, within 2 minutes of submitting.
+
+  Who benefits: Every meeting attendee — especially those in multiple meetings.
+
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  FEATURE 4 — Action Item Tracker Dashboard                         │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Description:
+    A visual dashboard shows all meetings processed, meeting status
+    (processing / done / failed), and a full list of attendees and their
+    action items per meeting. Animated stat cards show total meetings,
+    total action items extracted, and emails sent this month.
+    A plan usage banner shows how many meetings remain before hitting the
+    monthly limit, with a direct upgrade path.
+
+  Problem Solved:
+    Gives the organiser a single place to check: "Did everyone get their
+    tasks? Are the items resolved?" without chasing anyone on Slack.
+
+  Who benefits: Project managers, team leads, meeting organisers.
+
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  FEATURE 5 — Automated Reminders & Overdue Alerts                  │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Description:
+    A daily cron job (9 AM IST every day) scans all open action items with
+    a due date. It automatically sends:
+      · Reminder email — item due today, or high-priority item due tomorrow
+      · Overdue alert (red theme) — item is past its due date
+
+    Each item is stamped after the first reminder so attendees are never
+    spammed. Items marked Done are excluded entirely.
+
+    Free plan: one reminder batch per user per month.
+    Plus / Pro: daily reminders with no cap.
+
+  Problem Solved:
+    Removes the need for the organiser to manually follow up.
+    "I forgot" is no longer a valid excuse — the system follows up for you.
+
+  Who benefits: Everyone with recurring deadlines and distributed teams.
+
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  FEATURE 6 — One-Click "Mark as Done" (No Login Required)          │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Description:
+    Every action item in every email includes a unique tokenised link.
+    Clicking it marks the item as done in the database instantly —
+    no account, no login, no app install needed on the attendee's side.
+    The meeting organiser receives an instant notification email when an
+    attendee marks their item complete.
+
+  Problem Solved:
+    Zero friction for attendees. They don't need to join another tool.
+    The organiser gets real-time visibility on task completion without
+    asking "did you finish that?"
+
+  Who benefits: All attendees + organisers tracking completion.
+
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  FEATURE 7 — Email Auto-Detection from Transcript                  │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Description:
+    As the organiser types or pastes a transcript, ActaFlow's frontend runs
+    a real-time regex over the text and automatically populates the Attendee
+    Emails field with any email addresses found in the transcript itself.
+    Manual edits to the email field disable auto-fill (so deliberate changes
+    are never overwritten).
+
+  Problem Solved:
+    Saves manual copy-pasting of emails that are often already in the
+    transcript (e.g. Zoom transcripts include participant emails in headers).
+
+  Who benefits: Anyone pasting transcripts that already contain email addresses.
+
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  FEATURE 8 — Plan-Gated Access & Upgrade Flows                     │
+  └─────────────────────────────────────────────────────────────────────┘
+
+  Description:
+    Three tiers — Free, Plus ($10/mo), Pro ($29/mo) — enforced at every
+    layer: UI warnings, API hard-blocks, and background job caps.
+
+      Free  → 2 meetings/mo · 3 attendee emails · 1 reminder/mo
+      Plus  → 20 meetings/mo · unlimited emails · daily reminders
+      Pro   → unlimited everything · 500 MB uploads · priority support
+
+    Plan changes sync instantly from Clerk Billing to the database on the
+    very next request — no webhook needed (see lazy-sync architecture).
+    The dashboard shows a live usage banner and upgrade CTA when near limit.
+
+  Problem Solved:
+    Small teams can trial the full workflow for free. Paid plans remove
+    the limits that matter most as the team grows.
+
+  Who benefits: Growing teams who outgrow the free tier.
+
+
+════════════════════════════════════════════════════════════════════════════
+  TECH STACK & AUTOMATION PIPELINE
+════════════════════════════════════════════════════════════════════════════
+
+
+  ┌─ FRONTEND ───────────────────────────────────────────────────────────┐
+  │  Next.js 16          App Router · Server Components · streaming      │
+  │  Tailwind CSS v4     @theme inline tokens · oklch() color system     │
+  │  shadcn/ui           Accessible primitives (no class overrides)      │
+  │  Framer Motion       Stat card count-up · section fade-in · hover    │
+  │  Plus Jakarta Sans   Primary typeface (Google Fonts, local load)     │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ AUTH & BILLING ──────────────────────────────────────────────────────┐
+  │  Clerk v7            Auth · session · plan metadata via has()         │
+  │  Clerk Billing       PricingTable · plan slugs: free / plus / pro     │
+  │  Lazy plan sync      getOrCreateUser() diffs Clerk vs DB every        │
+  │                      request — no webhook, no queue, no delay         │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ DATABASE ────────────────────────────────────────────────────────────┐
+  │  Neon PostgreSQL     Serverless Postgres · HTTP driver (no pooler)   │
+  │  Drizzle ORM         Type-safe queries · schema-push workflow         │
+  │  6 tables            users · meetings · attendees · action_items      │
+  │                      email_logs · contacts                            │
+  │  CASCADE DELETE      Deleting a user wipes all related data safely    │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ AI EXTRACTION ───────────────────────────────────────────────────────┐
+  │  Gemini 2.0 Flash    extractMeetingData() — transcript → structured   │
+  │  (gemini-3-flash)    JSON: title, summary, attendees[], action_items, │
+  │                      decisions, blockers                              │
+  │  Gemini Files API    transcribeVideo() — uploads file, polls until    │
+  │                      ACTIVE state, calls generateContent, cleans up   │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ BACKGROUND JOBS (INNGEST) ───────────────────────────────────────────┐
+  │                                                                        │
+  │  EVENT: actaflow/meeting.uploaded                                      │
+  │                                                                        │
+  │  processMeeting — 6 idempotent steps, 3 retries each:                 │
+  │    Step 1  Mark meeting status → 'processing'                          │
+  │    Step 2  Fetch user plan from DB (for email cap)                     │
+  │    Step 3  If upload: fetch from Cloudinary → transcribeVideo()        │
+  │            → persist transcript → extractMeetingData() via Gemini     │
+  │    Step 4  Save attendees + action items with 3-tier email resolution  │
+  │    Step 5  Send per-attendee emails via Resend (capped by plan)        │
+  │    Step 6  Mark meeting status → 'done' (or 'failed' on error)        │
+  │                                                                        │
+  │  sendReminders — daily cron · 30 3 * * * (= 9 AM IST):               │
+  │    · Query open items with dueDate + ownerEmail + reminderSentAt=null  │
+  │    · Send reminder (due today / high-priority due tomorrow)            │
+  │    · Send overdue alert (past due date, red email theme)               │
+  │    · Stamp reminderSentAt on each item after send                      │
+  │    · Free plan: skip if reminderMonthSentAt is in current month        │
+  │                                                                        │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ EMAIL ───────────────────────────────────────────────────────────────┐
+  │  Resend              Transactional email API                          │
+  │  React Email         JSX email templates                              │
+  │  ActionItemEmail     Per-attendee · personalised · doneToken link     │
+  │  ReminderEmail       Reminder / overdue dual-mode template            │
+  │  DoneNotification    Organiser alert when attendee marks item done    │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ FILE STORAGE ────────────────────────────────────────────────────────┐
+  │  Cloudinary          Audio/video uploads → actaflow/meetings folder   │
+  │                      Streamed upload · signed URL retrieval           │
+  │                      File cleaned up from Gemini Files API after use  │
+  └──────────────────────────────────────────────────────────────────────┘
+
+  ┌─ DEPLOYMENT ──────────────────────────────────────────────────────────┐
+  │  Vercel              Serverless · Edge-ready · auto-deploy on push    │
+  │  Upload route        runtime: nodejs · maxDuration: 60s               │
+  │  Transcribe route    maxDuration: 120s (Gemini polling)               │
+  │  Inngest route       /api/inngest — must stay public (Inngest calls)  │
+  └──────────────────────────────────────────────────────────────────────┘
+
+
+  ┌─ FULL AUTOMATION FLOW (end to end) ──────────────────────────────────┐
+  │                                                                        │
+  │  User submits meeting                                                  │
+  │       │                                                                │
+  │       ├── [Paste flow]  POST /api/meetings/create                      │
+  │       │        Plan check → DB insert → fire Inngest event             │
+  │       │                                                                │
+  │       └── [Upload flow] POST /api/meetings/upload                     │
+  │                Plan check → Cloudinary upload → DB insert             │
+  │                → fire Inngest event                                    │
+  │                                                                        │
+  │  Inngest: actaflow/meeting.uploaded received                           │
+  │       │                                                                │
+  │       ├── Step 1  status = 'processing'                                │
+  │       ├── Step 2  fetch plan                                           │
+  │       ├── Step 3  transcribe (upload only) → Gemini AI extract        │
+  │       ├── Step 4  save attendees + action items to DB                  │
+  │       ├── Step 5  send personalised emails (Resend, plan-capped)      │
+  │       └── Step 6  status = 'done'                                      │
+  │                                                                        │
+  │  Daily at 9 AM IST                                                     │
+  │       │                                                                │
+  │       └── sendReminders cron                                           │
+  │                Query open items → send reminder/overdue emails        │
+  │                → stamp reminderSentAt → enforce free plan cap         │
+  │                                                                        │
+  │  Attendee clicks "Mark as Done" link (no login)                        │
+  │       │                                                                │
+  │       └── /api/action-items/[id]/done?token=...                       │
+  │                Validate doneToken → mark done → notify organiser      │
+  │                → redirect to /?done=success                            │
+  │                                                                        │
+  └──────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+  ActaFlow — Turn meetings into action.
+═══════════════════════════════════════════════════════════════════════════════

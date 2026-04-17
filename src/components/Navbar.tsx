@@ -11,7 +11,7 @@ import { Show, UserButton, useUser, useAuth } from "@clerk/nextjs";
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 const navLinks = [
-  { label: "Features", href: "#features" },
+  { label: "Features", href: "/features" },
   { label: "How It Works", href: "#how-it-works" },
   { label: "Pricing", href: "/pricing" },
 ];

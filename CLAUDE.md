@@ -129,6 +129,8 @@ src/
     sign-up/[[...sign-up]]/       # Clerk <SignUp /> page
     pricing/
       page.tsx                    # Pricing page — <PricingTable /> + static feature comparison table (Free/Plus/Pro)
+    features/
+      page.tsx                    # Features page — horizontal snap-scroll carousel (10 slides: hero + 8 features + tech stack + CTA). Client component. Protected: unsigned users redirected to /sign-in by Navbar handleNavClick.
     dashboard/
       layout.tsx                  # DashboardSidebar + main content shell
       page.tsx                    # Server component — fetches meetings + stats, renders DashboardClient
@@ -143,7 +145,7 @@ src/
       meetings/[id]/route.ts      # GET — single meeting with attendees + action items
       action-items/[id]/done/     # GET — mark done via doneToken query param, redirects to /?done=success|invalid (no auth required)
   components/
-    Navbar.tsx                    # Fixed navbar — Pricing links to /pricing; plan badge (Free/Plus/Pro) shown via useAuth().has() when signed in
+    Navbar.tsx                    # Fixed navbar — Features links to /features; Pricing to /pricing; plan badge (Free/Plus/Pro) via useAuth().has(). handleNavClick redirects unsigned users to /sign-in for all nav links.
     HeroSection.tsx               # Landing hero with animated counter
     dashboard/
       DashboardClient.tsx         # Animated stats cards + meeting list + plan usage banner (client component)
@@ -207,7 +209,9 @@ After sending, stamps `reminderSentAt` on each action item. Items with `status =
 
 **Animations** — Framer Motion throughout. Type cubic-bezier arrays as `const EASE: [number, number, number, number]`. Dashboard stat cards use `animate()` from Framer Motion for number count-up on load.
 
-**Images** — All assets on Cloudinary (`res.cloudinary.com`). Animated GIFs require `unoptimized` prop on `<Image>`.
+**Images** — All assets on Cloudinary (`res.cloudinary.com`). Animated GIFs require `unoptimized` prop on `<Image>`. Screenshot URLs for the features page are catalogued in `images.txt` (feature descriptions) and `error.txt` (Cloudinary URLs) at the repo root.
+
+**Horizontal carousel pattern** (`src/app/features/page.tsx`) — `fixed inset-0` container with `overflow-x: scroll` + `scroll-snap-type: x mandatory`. Each slide is `w-screen h-screen` with `scroll-snap-align: start`. Navigation: prev/next arrow buttons (AnimatePresence fade), dot indicators (active dot expands to pill), keyboard ← → support via `useRef`-tracked current index. Slide content animates in via `textContainer` stagger + `imgVariant` only when `active` prop is true — re-animates on every slide visit.
 
 ---
 
