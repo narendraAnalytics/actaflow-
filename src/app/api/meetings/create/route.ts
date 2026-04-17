@@ -59,9 +59,10 @@ export async function POST(req: Request) {
     .map((e) => e.trim())
     .filter((e) => e.includes('@'));
 
-  if (limits.maxAttendeeEmails !== Infinity && emailList.length > limits.maxAttendeeEmails) {
-    return NextResponse.json({ error: 'ATTENDEE_LIMIT_EXCEEDED' }, { status: 403 });
-  }
+  const cappedEmailList =
+    limits.maxAttendeeEmails !== Infinity
+      ? emailList.slice(0, limits.maxAttendeeEmails)
+      : emailList;
 
   // Insert meeting record
   const [meeting] = await db
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
     data: {
       meetingId: meeting.id,
       userId,
-      attendeeEmails: emailList,
+      attendeeEmails: cappedEmailList,
     },
   });
 
