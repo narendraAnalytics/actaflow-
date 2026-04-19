@@ -145,8 +145,9 @@ src/
       meetings/[id]/route.ts      # GET — single meeting with attendees + action items
       action-items/[id]/done/     # GET — mark done via doneToken query param, redirects to /?done=success|invalid (no auth required)
   components/
-    Navbar.tsx                    # Fixed navbar — Features links to /features; Pricing to /pricing; plan badge (Free/Plus/Pro) via useAuth().has(). handleNavClick redirects unsigned users to /sign-in for all nav links.
-    HeroSection.tsx               # Landing hero with animated counter
+    Navbar.tsx                    # Fixed navbar — Features links to /features; Pricing to /pricing; plan badge (Free/Plus/Pro) via useAuth().has(). handleNavClick redirects unsigned users to /sign-in for all nav links. "How It Works" is special: handleHowItWorksClick opens VideoPlayerModal for signed-in users instead of navigating to #how-it-works.
+    HeroSection.tsx               # Landing hero with animated counter. "Watch Demo" button opens VideoPlayerModal for all visitors (no auth check).
+    VideoPlayerModal.tsx          # Shared full-featured video player modal. Uses React native video event props (onLoadedMetadata, onTimeUpdate etc.) — NOT addEventListener — to avoid missed events. Seek bar uses pointer capture for drag support. Controls: play/pause, stop, ±10s skip, seekbar, volume, mute, playback speed, fullscreen. Keyboard: Space, ←/→, Esc.
     dashboard/
       DashboardClient.tsx         # Animated stats cards + meeting list + plan usage banner (client component)
       DashboardSidebar.tsx        # Sidebar nav with UserButton
@@ -209,7 +210,7 @@ After sending, stamps `reminderSentAt` on each action item. Items with `status =
 
 **Animations** — Framer Motion throughout. Type cubic-bezier arrays as `const EASE: [number, number, number, number]`. Dashboard stat cards use `animate()` from Framer Motion for number count-up on load.
 
-**Images** — All assets on Cloudinary (`res.cloudinary.com`). Animated GIFs require `unoptimized` prop on `<Image>`. Screenshot URLs for the features page are catalogued in `images.txt` (feature descriptions) and `error.txt` (Cloudinary URLs) at the repo root.
+**Images** — All assets on Cloudinary (`res.cloudinary.com`). Animated GIFs require `unoptimized` prop on `<Image>`. `images.txt` at the repo root catalogues feature-page screenshot descriptions; `error.txt` holds the demo video Cloudinary URL used by `VideoPlayerModal`.
 
 **Horizontal carousel pattern** (`src/app/features/page.tsx`) — `fixed inset-0` container with `overflow-x: scroll` + `scroll-snap-type: x mandatory`. Each slide is `w-screen h-screen` with `scroll-snap-align: start`. Navigation: prev/next arrow buttons (AnimatePresence fade), dot indicators (active dot expands to pill), keyboard ← → support via `useRef`-tracked current index. Slide content animates in via `textContainer` stagger + `imgVariant` only when `active` prop is true — re-animates on every slide visit.
 

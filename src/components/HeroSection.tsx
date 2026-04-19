@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Calendar,
 } from "lucide-react";
+import VideoPlayerModal from "@/components/VideoPlayerModal";
 
 /* ── Animation variants ── */
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -72,6 +73,7 @@ export default function HeroSection() {
   const displayName = user?.username ?? user?.firstName ?? "there";
 
   const [count, setCount] = useState(100);
+  const [showDemo, setShowDemo] = useState(false);
   useEffect(() => {
     if (!inView) return;
     const start = 100;
@@ -297,6 +299,7 @@ export default function HeroSection() {
               </Link>
 
               <button
+                onClick={() => setShowDemo(true)}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold transition-all duration-200 hover:scale-[1.02]"
                 style={{
                   border: "1.5px solid oklch(0.55 0.25 285 / 0.4)",
@@ -693,6 +696,8 @@ export default function HeroSection() {
           {/* ── END RIGHT COLUMN ── */}
         </div>
       </div>
+
+      <VideoPlayerModal open={showDemo} onOpenChange={setShowDemo} />
     </section>
   );
 }

@@ -1,9 +1,1 @@
-feature 1 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438449/feature1_z6azbr.png
-feature 2 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438448/feature2_qeidx4.png
-feature 3 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438442/feature3_tifwzf.png
-feature 4 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438445/feature4_fwp80z.png
-feature 5 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438444/feature5_qw4bdv.png
-feature 6 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438454/feature6_mc9c18.png
-feature 7 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438449/feature7_rfgefp.png
-feature 8 : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438448/feature8_tb1jwb.png
-tech details : https://res.cloudinary.com/dkqbzwicr/image/upload/q_auto/f_auto/v1776438453/techdetails_busywc.png
+videourl : https://res.cloudinary.com/dkqbzwicr/video/upload/q_auto/f_auto/v1776577207/videoactaflow_sx87rc.webm

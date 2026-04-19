@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Show, UserButton, useUser, useAuth } from "@clerk/nextjs";
+import VideoPlayerModal from "@/components/VideoPlayerModal";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -19,6 +20,7 @@ const navLinks = [
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [navVisible, setNavVisible] = useState(true);
+  const [showVideo, setShowVideo] = useState(false);
   const { user, isSignedIn } = useUser();
   const { has } = useAuth();
   const router = useRouter();
@@ -42,6 +44,19 @@ export default function Navbar() {
     } else {
       if (closeDrawer) setOpen(false);
     }
+  }
+
+  function handleHowItWorksClick(
+    e: React.MouseEvent<HTMLAnchorElement>,
+    closeDrawer?: boolean
+  ) {
+    e.preventDefault();
+    if (!isSignedIn) {
+      router.push("/sign-in");
+    } else {
+      setShowVideo(true);
+    }
+    if (closeDrawer) setOpen(false);
   }
 
   return (
@@ -108,7 +123,7 @@ export default function Navbar() {
                     >
                       <Link
                         href={link.href}
-                        onClick={handleNavClick}
+                        onClick={link.href === "#how-it-works" ? handleHowItWorksClick : handleNavClick}
                         className="px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 block"
                         style={{ color: "oklch(0.50 0.06 285)" }}
                         onMouseEnter={(e) =>
@@ -196,7 +211,7 @@ export default function Navbar() {
                 >
                   <Link
                     href={link.href}
-                    onClick={(e) => handleNavClick(e, true)}
+                    onClick={(e) => link.href === "#how-it-works" ? handleHowItWorksClick(e, true) : handleNavClick(e, true)}
                     className="block px-4 py-3 rounded-xl text-base font-medium transition-colors duration-150"
                     style={{ color: "oklch(0.50 0.18 285)" }}
                     onMouseEnter={(e) =>
@@ -237,6 +252,8 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <VideoPlayerModal open={showVideo} onOpenChange={setShowVideo} />
     </>
   );
 }
